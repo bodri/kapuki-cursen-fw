@@ -22,12 +22,17 @@
 #include "main.h"
 #include "adc.h"
 #include "comp.h"
+#include "crc.h"
 #include "dac.h"
+#include "dma.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+
+#include <stdbool.h>
 
 /* USER CODE END Includes */
 
@@ -49,6 +54,9 @@
 
 /* USER CODE BEGIN PV */
 
+volatile uint16_t adcReadings[4]; //ADC Readings
+volatile bool shouldSendData = false;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -59,6 +67,12 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+	if (htim->Instance == TIM4) {
+		shouldSendData = true;
+	}
+}
 
 /* USER CODE END 0 */
 
@@ -91,16 +105,21 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_ADC1_Init();
   MX_ADC2_Init();
   MX_COMP1_Init();
   MX_DAC1_Init();
   MX_USART1_UART_Init();
+  MX_TIM4_Init();
+  MX_CRC_Init();
   /* USER CODE BEGIN 2 */
 
+  // Set REF to 1.6V
   HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
   HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2048);
 
+  HAL_ADC_Start_DMA(&hadc2, (uint32_t *)adcReadings, 1);
 
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
 
@@ -108,11 +127,33 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  HAL_TIM_Base_Start_IT(&htim4);
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	if (shouldSendData) {
+		uint8_t data[8];
+		data[0] = 0x69;
+		data[1] = adcReadings[0];
+		data[2] = adcReadings[1];
+		data[3] = ((adcReadings[0] >> 4) & 0xf0)
+				| ((adcReadings[1] >> 8) & 0x0f);
+		data[4] = adcReadings[2];
+		data[5] = adcReadings[3];
+		data[6] = ((adcReadings[2] >> 4) & 0xf0)
+				| ((adcReadings[3] >> 8) & 0x0f);
+
+		uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*) data,
+				sizeof(data) - 1);
+		data[7] = (uint8_t) crc;
+		if (HAL_UART_Transmit_DMA(&huart1, data, sizeof(data)) != HAL_OK) {
+			Error_Handler();
+		}
+
+		shouldSendData = false;
+	}
   }
   /* USER CODE END 3 */
 }
@@ -135,7 +176,13 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+  RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV2;
+  RCC_OscInitStruct.PLL.PLLN = 20;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -144,12 +191,12 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
   {
     Error_Handler();
   }
