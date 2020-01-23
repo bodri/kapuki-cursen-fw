@@ -33,6 +33,7 @@
 /* USER CODE BEGIN Includes */
 
 #include <stdbool.h>
+#include <string.h>
 
 /* USER CODE END Includes */
 
@@ -54,8 +55,15 @@
 
 /* USER CODE BEGIN PV */
 
-volatile uint16_t adcReadings[4]; //ADC Readings
-volatile bool shouldSendData = false;
+volatile uint16_t adc1Readings[4]; //ADC Readings
+volatile uint16_t adc2Readings[4]; //ADC Readings
+volatile bool busReleased = false;
+volatile bool telemetryRequest = false;
+volatile bool jetiboxRequest = false;
+uint8_t serialData[1];
+uint8_t state;
+uint8_t length;
+uint8_t packetId;
 
 /* USER CODE END PV */
 
@@ -69,9 +77,40 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN 0 */
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-	if (htim->Instance == TIM4) {
-		shouldSendData = true;
+//	if (htim->Instance == TIM4) {
+//		shouldSendData = true;
+//	}
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+//	if (serialData[0] == 0x3E && serialData[1] == 0x01)  {
+//		shouldSendData = true;
+//	}
+}
+
+#define POLY 0x07
+unsigned char update_crc(unsigned char crc, unsigned char crc_seed) {
+	unsigned char crc_u;
+	unsigned char i;
+
+	crc_u = crc;
+	crc_u ^= crc_seed;
+
+	for (i = 0; i < 8; i++) {
+		crc_u = (crc_u & 0x80) ? POLY ^ (crc_u << 1) : (crc_u << 1);
 	}
+	return crc_u;
+}
+
+unsigned char calculateCrc8(unsigned char *crc, unsigned char crc_lenght) {
+	unsigned char crc_up = 0;
+	unsigned char c;
+
+	for (c = 0; c < crc_lenght; c++) {
+		crc_up = update_crc(crc[c], crc_up);
+	}
+
+	return crc_up;
 }
 
 /* USER CODE END 0 */
@@ -115,15 +154,24 @@ int main(void)
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
 
+  // Calibrate ADC
+  HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
+  HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
+
   // Set REF to 1.6V
   HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
-  HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2048);
+  HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2016);
 
-  HAL_ADC_Start_DMA(&hadc2, (uint32_t *)adcReadings, 1);
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc1Readings, 2);
+  HAL_ADC_Start_DMA(&hadc2, (uint32_t *)adc2Readings, 1);
 
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
 
+  HAL_SYSCFG_EnableVREFBUF();
+
   /* USER CODE END 2 */
+ 
+ 
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -133,27 +181,151 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	if (shouldSendData) {
-		uint8_t data[8];
-		data[0] = 0x69;
-		data[1] = adcReadings[0];
-		data[2] = adcReadings[1];
-		data[3] = ((adcReadings[0] >> 4) & 0xf0)
-				| ((adcReadings[1] >> 8) & 0x0f);
-		data[4] = adcReadings[2];
-		data[5] = adcReadings[3];
-		data[6] = ((adcReadings[2] >> 4) & 0xf0)
-				| ((adcReadings[3] >> 8) & 0x0f);
+	  if (HAL_UART_Receive(&huart1, serialData, sizeof(serialData), 1000) != HAL_OK) {
+		  Error_Handler();
+	  }
 
-		uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*) data,
-				sizeof(data) - 1);
-		data[7] = (uint8_t) crc;
-		if (HAL_UART_Transmit_DMA(&huart1, data, sizeof(data)) != HAL_OK) {
-			Error_Handler();
-		}
+	  switch (state) {
+	  case 0:
+			if (serialData[0] == 0x3E || serialData[0] == 0x3D)  {
+				state++;
+			} else {
+				state = 0;
+			}
+			break;
+	  case 1:
+		  if (serialData[0] == 0x01) {
+			  state++;
+		  } else {
+			  state = 0;
+		  }
+		  break;
+	  case 2:
+		  length = serialData[0] - 3; // 2 (byte header) + 1 (zero based)
+		  if (length >= 3) {
+			  state++;
+		  } else {
+			  state = 0;
+		  }
+		  break;
+	  case 3:
+		  length--;
+		  packetId = serialData[0];
+		  state++;
+		  break;
+	  case 4:
+		  length--;
+		  telemetryRequest = serialData[0] == 0x3A ? true : false;
+		  jetiboxRequest = serialData[0] == 0x3B ? true : false;
+		  state++;
+		  break;
+	  case 5:
+		  length--;
+		  if (length == 0) {
+			  for (int i = 0; i < 1000; i++) { }
+//			  HAL_Delay(1);
+			  busReleased = true;
+			  state = 0;
+		  }
+		  break;
+	  }
 
-		shouldSendData = false;
-	}
+
+	  if (busReleased) {
+		  if (jetiboxRequest) {
+			  uint8_t cucc[] = "\x43\x65\x6E\x74\x72\x61\x6C\x20\x42\x6F\x78\x20\x31\x30\x30\x3E\x20\x20\x20\x34\x2E\x38\x56\x20\x20\x31\x30\x34\x30\x6D\x41\x00";
+			  uint8_t data[128];
+			  data[0] = 0x3B;
+			  data[1] = 0x01;
+			  data[2] = sizeof(cucc) + 7; //len
+			  data[3] = packetId; //0x08 packetId
+			  data[4] = 0x3B;
+			  data[5] = sizeof(cucc) - 1;
+
+			  uint8_t crc8 = calculateCrc8(cucc + 1, sizeof(cucc) - 3);
+			  cucc[sizeof(cucc) - 2] = crc8;
+
+			  memcpy(&data[6], cucc, sizeof(cucc));
+			  uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*) data, sizeof(cucc) + 5);
+			  data[sizeof(cucc) + 5] = (uint8_t)crc;
+			  data[sizeof(cucc) + 6] = (uint8_t)(crc >> 8);
+
+			  if (HAL_UART_Transmit(&huart1, (uint8_t *)data, sizeof(cucc) + 7, 1000) != HAL_OK) {
+				 Error_Handler();
+			  }
+		  } else if (telemetryRequest) {
+			  uint8_t cucc[] = "\x9F\x0F\xA1\xA4\x5D\x55\x00\x02\x2ATemp.\xB0\x43\x00";
+			  uint8_t data[128];
+			  data[0] = 0x3B;
+			  data[1] = 0x01;
+			  data[2] = sizeof(cucc) + 7; //len
+			  data[3] = packetId; //0x08 packetId
+			  data[4] = 0x3A;
+			  data[5] = sizeof(cucc) - 1;
+
+			  uint8_t crc8 = calculateCrc8(cucc + 1, sizeof(cucc) - 3);
+			  cucc[sizeof(cucc) - 2] = crc8;
+
+			  memcpy(&data[6], cucc, sizeof(cucc));
+			  uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*) data, sizeof(cucc) + 5);
+			  data[sizeof(cucc) + 5] = (uint8_t)crc;
+			  data[sizeof(cucc) + 6] = (uint8_t)(crc >> 8);
+
+			  if (HAL_UART_Transmit(&huart1, (uint8_t *)data, sizeof(cucc) + 7, 1000) != HAL_OK) {
+				 Error_Handler();
+			  }
+		  } else {
+			  uint8_t cucc[] = "\x9F\x4C\xA1\xA4\x5D\x55\x00\x11\xE8\x23\x21\x1A\x00\x00";
+			  uint8_t data[128];
+			  data[0] = 0x3B;
+			  data[1] = 0x01;
+			  data[2] = sizeof(cucc) + 7; //len
+			  data[3] = packetId; //0x08 packetId
+			  data[4] = 0x3A;
+			  data[5] = sizeof(cucc) - 1;
+
+			  uint8_t crc8 = calculateCrc8(cucc + 1, sizeof(cucc) - 3);
+			  cucc[sizeof(cucc) - 2] = crc8;
+
+			  memcpy(&data[6], cucc, sizeof(cucc));
+			  uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*) data, sizeof(cucc) + 5);
+			  data[sizeof(cucc) + 5] = (uint8_t)crc;
+			  data[sizeof(cucc) + 6] = (uint8_t)(crc >> 8);
+
+			  if (HAL_UART_Transmit(&huart1, (uint8_t *)data, sizeof(cucc) + 7, 1000) != HAL_OK) {
+				 Error_Handler();
+			  }
+		  }
+
+
+		  busReleased = false;
+	  }
+//
+//	  HAL_Delay(5);
+//	  if (UART_CheckIdleState(&huart1) == HAL_TIMEOUT) {
+//		/* Timeout occurred */
+//		return HAL_TIMEOUT;
+//	  }
+//	if (shouldSendData) {
+//		uint8_t data[8];
+//		data[0] = 0x69;
+//		data[1] = adc2Readings[0];
+//		data[2] = adc1Readings[0];
+//		data[3] = ((adc2Readings[0] >> 4) & 0xf0)
+//				| ((adc1Readings[0] >> 8) & 0x0f);
+//		data[4] = adc1Readings[1];
+//		data[5] = adc1Readings[2];
+//		data[6] = ((adc1Readings[1] >> 4) & 0xf0)
+//				| ((adc1Readings[2] >> 8) & 0x0f);
+//
+//		uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*) data, sizeof(data) - 1);
+//		data[7] = (uint8_t) crc;
+//		if (HAL_UART_Transmit_DMA(&huart1, data, sizeof(data)) != HAL_OK) {
+//			Error_Handler();
+//		}
+//
+//		shouldSendData = false;
+//	}
   }
   /* USER CODE END 3 */
 }
