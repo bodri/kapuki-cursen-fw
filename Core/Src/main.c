@@ -225,7 +225,6 @@ int main(void)
 		  length--;
 		  if (length == 0) {
 			  for (int i = 0; i < 500; i++) { }
-//			  HAL_Delay(1);
 			  busReleased = true;
 			  state = 0;
 		  }
