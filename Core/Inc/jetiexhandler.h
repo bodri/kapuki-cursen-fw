@@ -57,8 +57,8 @@ public:
 	void readBuffer(uint8_t* buffer, size_t size);
 
 private:
-	uint16_t manufacturerId { 0xA1A4 };
-	uint16_t deviceId { 0x5D55 } ;
+	uint16_t manufacturerId { 0xA4A1 };
+	uint16_t deviceId { 0x555D } ;
 //	std::unordered_map<std::string, std::function<void(NmeaSentence)>> sentenceHandlers;
 	ParserState state { Start };
 	std::string packet;

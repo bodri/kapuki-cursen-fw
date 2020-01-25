@@ -32,6 +32,7 @@ void JetiExHandler::readByte(uint8_t byte) {
 	switch (state) {
 	case Start:
 		if (byte == startChar1 || byte == startChar2) {
+			packet.clear();
 			packet.push_back(byte);
 			state++;
 		}
@@ -62,11 +63,11 @@ void JetiExHandler::readByte(uint8_t byte) {
 		break;
 
 	case ChecksumChar1:
-		parsedChecksum = byte << 8;
+		parsedChecksum = byte;
 		state++;
 		break;
 	case ChecksumChar2: {
-		parsedChecksum += byte;
+		parsedChecksum += byte << 8;
 		uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*) packet.c_str(), packet.size());
 		if (crc == parsedChecksum) {
 			state++;
@@ -76,14 +77,16 @@ void JetiExHandler::readByte(uint8_t byte) {
 	}
 		break;
 	case Done:
-		for (int i = 0; i < 1000; i++) { }
+		for (int i = 0; i < 500; i++) { }
 		state = Start;
 
 		if (releaseBusFlag) {
-			if (packet[4] == telemetryRequest) {
+			if (packet[4] == jetiboxRequest) {
+			} else if (packet[4] == telemetryRequest) {
 				TelemetryData data(1, "Current", "A");
 				uint8_t *packet = createTelemetryTextPacket(data);
-
+				for (int i = 0; i < 1000; i++) { }
+//				"\x9F\x10\xA1\xA4\x5D\x55\x00\x01\x39\x43\x75\x72\x72\x65\x6E\x74\x41\x00"; // Current
 			} else {
 
 			}
@@ -183,8 +186,7 @@ void JetiExHandler::readBuffer(uint8_t *buffer, size_t size) {
 //
 
 uint8_t *JetiExHandler::createTelemetryTextPacket(const TelemetryData& data) {
-//	  uint8_t cucc[] = "\x9F\x0F\xA1\xA4\x5D\x55\x00\x02\x2ATemp.\xB0\x43\x00";
-	uint8_t length = data.description.size() + data.unit.size() + 9;
+	uint8_t length = data.description.size() + data.unit.size() + 10;
 	std::unique_ptr<uint8_t[]> buffer;
 	buffer.reset(new uint8_t[length]);
 
@@ -192,7 +194,9 @@ uint8_t *JetiExHandler::createTelemetryTextPacket(const TelemetryData& data) {
 	buffer[1] = (length - 2) & 0x3F;
 
 	buffer[2] = manufacturerId;
+	buffer[3] = manufacturerId >> 8;
 	buffer[4] = deviceId;
+	buffer[5] = deviceId >> 8;
 
 	buffer[6] = 0; // reserved
 	buffer[7] = data.position;
@@ -200,12 +204,16 @@ uint8_t *JetiExHandler::createTelemetryTextPacket(const TelemetryData& data) {
 
 	memcpy(&buffer[9], data.description.c_str(), data.description.size());
 	memcpy(&buffer[9 + data.description.size()], data.unit.c_str(), data.unit.size());
-	uint8_t crc8 = calculateCrc8(buffer.get() + 1, length - 2);
-	buffer[length - 2] = crc8;
+
+	buffer[length - 1] = calculateCrc8(buffer.get() + 1, length - 2);
 
 	return buffer.get();
 }
 
+
+//
+// Copy from `JETI Telemetry communication protocol`. OMG those variable names :-)
+//
 uint8_t JetiExHandler::updateCrc(uint8_t crc, uint8_t crc_seed) {
 	uint8_t crc_u;
 
