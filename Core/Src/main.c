@@ -65,6 +65,8 @@ uint8_t state;
 uint8_t length;
 uint8_t packetId;
 
+uint8_t textCounter = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -222,7 +224,7 @@ int main(void)
 	  case 5:
 		  length--;
 		  if (length == 0) {
-			  for (int i = 0; i < 1000; i++) { }
+			  for (int i = 0; i < 500; i++) { }
 //			  HAL_Delay(1);
 			  busReleased = true;
 			  state = 0;
@@ -254,7 +256,14 @@ int main(void)
 				 Error_Handler();
 			  }
 		  } else if (telemetryRequest) {
-			  uint8_t cucc[] = "\x9F\x0F\xA1\xA4\x5D\x55\x00\x02\x2ATemp.\xB0\x43\x00";
+			  uint8_t cucc0[] = "\x9F\x10\xA1\xA4\x5D\x55\x00\x00\x40kapukiCS\x00"; // Sensor name
+			  uint8_t cucc1[] = "\x9F\x10\xA1\xA4\x5D\x55\x00\x01\x39\x43\x75\x72\x72\x65\x6E\x74\x41\x00"; // Current
+			  uint8_t cucc2[] = "\x9F\x10\xA1\xA4\x5D\x55\x00\x02\x39\x56\x6F\x6C\x74\x61\x67\x65\x56\x00"; // Voltage
+//			  uint8_t cucc3[] = "\x9F\x13\xA1\xA4\x5D\x55\x00\x03\x43\x56\x61\x6C\x61\x63\x69\x74\x79mAh\x00"; // Capacity
+			  uint8_t cucc3[] = "\x9F\x10\xA1\xA4\x5D\x55\x00\x04\x39Power  W\x00"; // Power
+
+			  uint8_t cucc[sizeof(cucc1)];
+			  memcpy(cucc,  textCounter == 0 ? cucc0 : (textCounter == 1 ? cucc1 : (textCounter == 2 ? cucc2 :cucc3)), sizeof(cucc1));
 			  uint8_t data[128];
 			  data[0] = 0x3B;
 			  data[1] = 0x01;
@@ -262,6 +271,8 @@ int main(void)
 			  data[3] = packetId; //0x08 packetId
 			  data[4] = 0x3A;
 			  data[5] = sizeof(cucc) - 1;
+
+			  textCounter >= 3 ? textCounter = 0 : textCounter++;
 
 			  uint8_t crc8 = calculateCrc8(cucc + 1, sizeof(cucc) - 3);
 			  cucc[sizeof(cucc) - 2] = crc8;
@@ -275,7 +286,7 @@ int main(void)
 				 Error_Handler();
 			  }
 		  } else {
-			  uint8_t cucc[] = "\x9F\x4C\xA1\xA4\x5D\x55\x00\x11\xE8\x23\x21\x1A\x00\x00";
+			  uint8_t cucc[] = "\x9F\x54\xA1\xA4\x5D\x55\x00\x11\xE8\x23\x21\x1A\x00\x31\x1A\x00\x41\x1A\x00\x00";
 			  uint8_t data[128];
 			  data[0] = 0x3B;
 			  data[1] = 0x01;
@@ -283,6 +294,23 @@ int main(void)
 			  data[3] = packetId; //0x08 packetId
 			  data[4] = 0x3A;
 			  data[5] = sizeof(cucc) - 1;
+
+			  // calculate current
+			  float rawCurrent = (3.3 * adc2Readings[0] / 4096) - 1.65;
+			  uint16_t current = rawCurrent * 1000;
+			  cucc[8] = (uint8_t)current;
+			  cucc[9] = (uint8_t)((current >> 8) & 0x1F) | 0x20;
+
+			  // calculate voltage
+			  float rawVoltage = (3.3 * adc1Readings[0] / 4096) / 0.0625;
+			  uint16_t voltage = rawVoltage * 100;
+			  cucc[11] = (uint8_t)voltage;
+			  cucc[12] = (uint8_t)((voltage >> 8) & 0x1F) | 0x40;
+
+			  // calculate power
+			  uint16_t power = rawCurrent * rawVoltage * 100;
+			  cucc[17] = (uint8_t)power;
+			  cucc[18] = (uint8_t)(power >> 8) & 0x1F;
 
 			  uint8_t crc8 = calculateCrc8(cucc + 1, sizeof(cucc) - 3);
 			  cucc[sizeof(cucc) - 2] = crc8;
