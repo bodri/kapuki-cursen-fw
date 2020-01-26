@@ -174,10 +174,10 @@ int main(void)
   HAL_SYSCFG_EnableVREFBUF();
 
   std::vector<TelemetryData> telemetryDataArray = {
-  		TelemetryData(1, "Current", "A"),
-  		TelemetryData(2, "Voltage", "V"),
-  		TelemetryData(3, "Capacity", "mAh"),
-  		TelemetryData(4, "Power", "W")
+  		TelemetryData(1, "Current", "A", 1),
+  		TelemetryData(2, "Voltage", "V", 2),
+  		TelemetryData(3, "Capacity", "mAh", 0),
+  		TelemetryData(4, "Power", "W", 0)
   };
 
   JetiExHandler jetiProtocol;

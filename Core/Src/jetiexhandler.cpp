@@ -180,19 +180,17 @@ std::string JetiExHandler::createTelemetryDataPacket() {
 
 	buffer[0] = 0x9F;
 	buffer[1] = (length - 2) & 0x3F;
-
 	buffer[2] = manufacturerId;
 	buffer[3] = manufacturerId >> 8;
 	buffer[4] = deviceId;
 	buffer[5] = deviceId >> 8;
-
 	buffer[6] = 0; // reserved
 
 	uint8_t i = 7;
 	for (auto&& telemetryData : telemetryDataArray) {
 		buffer[i++] = telemetryData.position;
 		buffer[i++] = telemetryData.value;
-		buffer[i++] = telemetryData.value >> 8;
+		buffer[i++] = (telemetryData.value > 0 ? 0x00 : 0x80) | ((telemetryData.decimalPointPosition & 0x03) << 6) | ((telemetryData.value >> 8) & 0x1F);
 	}
 
 	return buffer;
@@ -204,12 +202,10 @@ std::string JetiExHandler::createTelemetryTextPacket(const TelemetryData& data) 
 
 	buffer[0] = 0x9F;
 	buffer[1] = (length - 2) & 0x3F;
-
 	buffer[2] = manufacturerId;
 	buffer[3] = manufacturerId >> 8;
 	buffer[4] = deviceId;
 	buffer[5] = deviceId >> 8;
-
 	buffer[6] = 0; // reserved
 	buffer[7] = data.position;
 	buffer[8] = ((data.description.size() & 0x1F) << 3) | (data.unit.size() & 0x03);

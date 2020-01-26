@@ -19,8 +19,8 @@ class JetiExHandler;
 class TelemetryData {
 	friend JetiExHandler;
 public:
-	TelemetryData(uint8_t position, std::string description, std::string unit) :
-			position(position), description(description), unit(unit), value(0) {
+	TelemetryData(uint8_t position, std::string description, std::string unit, uint8_t decimalPointPosition) :
+			position(position), description(description), unit(unit), decimalPointPosition(decimalPointPosition), value(0) {
 	}
 	~TelemetryData() { }
 
@@ -28,7 +28,8 @@ private:
 	uint8_t position;
 	std::string description;
 	std::string unit;
-	uint16_t value;
+	uint8_t decimalPointPosition;
+	int16_t value;
 };
 
 enum ParserState {
