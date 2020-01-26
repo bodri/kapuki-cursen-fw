@@ -7,9 +7,9 @@
 
 #include <jetiexprotocol.h>
 #include "crc.h"
+#include "usart.h"
 
 #include <memory>
-//#include <string.h>
 
 #define CRC8_POLYNOMIAL 0x07
 
@@ -59,7 +59,7 @@ void JetiExProtocol::readByte(uint8_t byte) {
 		break;
 	case ChecksumChar2: {
 		parsedChecksum += byte << 8;
-		uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)packet.c_str(), packet.size());
+		uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)packet.data(), packet.size());
 		if (crc == parsedChecksum) {
 			state++;
 		} else {
@@ -68,23 +68,23 @@ void JetiExProtocol::readByte(uint8_t byte) {
 	}
 		break;
 	case Done:
-		for (int i = 0; i < 500; i++) { }
+		for (int i = 0; i < 1000; i++) { }
 		state = Start;
 
 		if (releaseBusFlag) {
 			if (packet[4] == jetiboxRequest) {
 			} else if (packet[4] == telemetryRequest) {
 				std::string packet = createExTelemetryPacket();
-				onPacketSend((uint8_t *)packet.c_str(), packet.size());
+				onPacketSend((uint8_t *)packet.data(), packet.size());
 
 //				TelemetryData data(1, "Current", "A");
 //				uint8_t *packet = createTelemetryTextPacket(data);
-				uint8_t *cucc = (uint8_t *)packet.c_str();
-				for (int i = 0; i < 1000; i++) { }
+//				uint8_t *cucc = (uint8_t *)packet.c_str();
+//				for (int i = 0; i < 10; i++) { }
 //				"\x9F\x10\xA1\xA4\x5D\x55\x00\x01\x39\x43\x75\x72\x72\x65\x6E\x74\x41\x00"; // Current
 			} else {
 				std::string packet = createExDataPacket();
-				onPacketSend((uint8_t *)packet.c_str(), packet.size());
+//				onPacketSend((uint8_t *)packet.c_str(), packet.size());
 				uint8_t *cucc = (uint8_t *)packet.c_str();
 				for (int i = 0; i < 1000; i++) { }
 
@@ -126,6 +126,7 @@ std::string JetiExProtocol::createExDataPacket() {
 	uint8_t length = dataPacket.size() + 8;
 	std::string buffer;
 
+	buffer.resize(length);
 	buffer[0] = 0x3B;
 	buffer[1] = 0x01;
 	buffer[2] = length;
@@ -133,9 +134,8 @@ std::string JetiExProtocol::createExDataPacket() {
 	buffer[4] = 0x3A;
 	buffer[5] = dataPacket.size();
 
-//	memcpy(&buffer[6], dataPacket.c_str(), dataPacket.size());
-	std::copy(std::begin(dataPacket), std::end(dataPacket), &buffer[6]);
-	uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*)buffer.c_str(), dataPacket.size() + 5);
+	std::copy(std::begin(dataPacket), std::end(dataPacket), std::begin(buffer) + 6);
+	uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*)buffer.data(), dataPacket.size() + 5);
 	buffer[dataPacket.size() + 6] = (uint8_t) crc;
 	buffer[dataPacket.size() + 7] = (uint8_t) (crc >> 8);
 
@@ -147,27 +147,27 @@ std::string JetiExProtocol::createExTelemetryPacket() {
 		return "";
 	}
 
-	auto const telemetryData = telemetryDataArray[currentTextPacketPosition];
+	const auto telemetryData = telemetryDataArray[currentTextPacketPosition++];
 	if (currentTextPacketPosition >= telemetryDataArray.size()) {
 		currentTextPacketPosition = 0;
 	}
 	std::string textPacket = createTelemetryTextPacket(telemetryData);
 
-	uint8_t length = textPacket.size() + 8;
+	uint8_t length = textPacket.length() + 8;
 	std::string buffer;
 
+	buffer.resize(length);
 	buffer[0] = 0x3B;
 	buffer[1] = 0x01;
 	buffer[2] = length;
 	buffer[3] = packet[3];
-	buffer[4] = 0x3B;
+	buffer[4] = 0x3A;
 	buffer[5] = textPacket.size();
 
-//	memcpy(&buffer[6], textPacket.c_str(), textPacket.size());
-	std::copy(std::begin(textPacket), std::end(textPacket), &buffer[6]);
-	uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*)buffer.c_str(), textPacket.size() + 5);
-	buffer[textPacket.size() + 6] = (uint8_t) crc;
-	buffer[textPacket.size() + 7] = (uint8_t) (crc >> 8);
+	std::copy(std::begin(textPacket), std::end(textPacket), std::begin(buffer) + 6);
+	uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)buffer.data(), length - 2);
+	buffer[length - 2] = (uint8_t)crc;
+	buffer[length - 1] = (uint8_t)(crc >> 8);
 
 	return buffer;
 }
@@ -176,6 +176,7 @@ std::string JetiExProtocol::createTelemetryDataPacket() {
 	uint8_t length = 3 * telemetryDataArray.size() + 8;
 	std::string buffer;
 
+	buffer.resize(length);
 	buffer[0] = 0x9F;
 	buffer[1] = (length - 2) & 0x3F;
 	buffer[2] = manufacturerId;
@@ -193,15 +194,16 @@ std::string JetiExProtocol::createTelemetryDataPacket() {
 				((telemetryData->value >> 8) & 0x1F);
 	}
 
-	buffer[length - 1] = calculateCrc8((uint8_t *)buffer.c_str() + 1, length - 2);
+	buffer[length - 1] = calculateCrc8((uint8_t *)buffer.data() + 1, length - 2);
 
 	return buffer;
 }
 
 std::string JetiExProtocol::createTelemetryTextPacket(const TelemetryData *data) {
-	uint8_t length = data->description.size() + data->unit.size() + 10;
+	uint8_t length = data->description.length() + data->unit.length() + 10;
 	std::string buffer;
 
+	buffer.resize(length);
 	buffer[0] = 0x9F;
 	buffer[1] = (length - 2) & 0x3F;
 	buffer[2] = manufacturerId;
@@ -210,14 +212,12 @@ std::string JetiExProtocol::createTelemetryTextPacket(const TelemetryData *data)
 	buffer[5] = deviceId >> 8;
 	buffer[6] = 0; // reserved
 	buffer[7] = data->position;
-	buffer[8] = ((data->description.size() & 0x1F) << 3) | (data->unit.size() & 0x03);
+	buffer[8] = ((data->description.size() & 0x1F) << 3) | (data->unit.length() & 0x03);
 
-//	memcpy(&buffer[9], data->description.c_str(), data->description.size());
-	std::copy(std::begin(data->description), std::end(data->description), &buffer[9]);
-//	memcpy(&buffer[9 + data->description.size()], data->unit.c_str(), data->unit.size());
-	std::copy(std::begin(data->unit), std::end(data->unit), &buffer[9 + data->description.size()]);
+	std::copy(std::begin(data->description), std::end(data->description), std::begin(buffer) + 9);
+	std::copy(std::begin(data->unit), std::end(data->unit), std::begin(buffer) + 9 + data->description.size());
 
-	buffer[length - 1] = calculateCrc8((uint8_t *)buffer.c_str() + 1, length - 2);
+	buffer[length - 1] = calculateCrc8((uint8_t *)buffer.data() + 1, length - 2);
 
 	return buffer;
 }
