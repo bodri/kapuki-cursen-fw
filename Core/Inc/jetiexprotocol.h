@@ -1,12 +1,12 @@
 /*
- * jetiexparser.h
+ * jetiexprotocol.h
  *
  *  Created on: 25 Jan 2020
  *      Author: gvaradi
  */
 
-#ifndef __JETIEXPARSER__
-#define __JETIEXPARSER__
+#ifndef __JETIEXPROTOCOL__
+#define __JETIEXPROTOCOL__
 
 #include <stdint.h>
 #include <string>
@@ -14,15 +14,22 @@
 #include <unordered_map>
 #include <functional>
 
-class JetiExHandler;
+class JetiExProtocol;
 
 class TelemetryData {
-	friend JetiExHandler;
+	friend JetiExProtocol;
 public:
 	TelemetryData(uint8_t position, std::string description, std::string unit, uint8_t decimalPointPosition) :
-			position(position), description(description), unit(unit), decimalPointPosition(decimalPointPosition), value(0) {
-	}
+			position(position),
+			description(description),
+			unit(unit),
+			decimalPointPosition(decimalPointPosition),
+			value(0) { }
 	~TelemetryData() { }
+
+	void setValue(int16_t value) {
+		this->value = value;
+	}
 
 private:
 	uint8_t position;
@@ -48,24 +55,25 @@ inline ParserState& operator++(ParserState& s, int) {
     return temp;
 }
 
-class JetiExHandler {
+class JetiExProtocol {
 public:
-	JetiExHandler() { }
-	~JetiExHandler() { }
+	JetiExProtocol(uint16_t manufacturerId, uint16_t deviceId, std::vector<TelemetryData *> telemetryDataArray) :
+		manufacturerId(manufacturerId),
+		deviceId(deviceId),
+		telemetryDataArray(telemetryDataArray) { }
+	~JetiExProtocol() { }
 
-//	void setSentenceHandler(std::string command, std::function<void(const NmeaSentence&)> handler);
+	std::function<void(const uint8_t *packet, size_t size)> onPacketSend;
 
 	void readByte(uint8_t byte);
 	void readBuffer(uint8_t *buffer, size_t size);
 
-	std::vector<TelemetryData> telemetryDataArray { };
-
-
 private:
-	uint16_t manufacturerId { 0xA4A1 };
-	uint16_t deviceId { 0x555D } ;
+	uint16_t manufacturerId;
+	uint16_t deviceId;
 
-//	std::unordered_map<std::string, std::function<void(NmeaSentence)>> sentenceHandlers;
+	std::vector<TelemetryData *> telemetryDataArray;
+
 	ParserState state { Start };
 	std::string packet;
 	uint8_t packetLength { 0 };
@@ -77,9 +85,9 @@ private:
 	std::string createExDataPacket();
 	std::string createExTelemetryPacket();
 	std::string createTelemetryDataPacket();
-	std::string createTelemetryTextPacket(const TelemetryData& data);
+	std::string createTelemetryTextPacket(const TelemetryData *data);
 	uint8_t updateCrc(uint8_t crc, uint8_t crc_seed);
 	uint8_t calculateCrc8(uint8_t *crc, uint8_t crc_lenght);
 };
 
-#endif /* __JETIEXPARSER__ */
+#endif /* __JETIEXPROTOCOL__ */

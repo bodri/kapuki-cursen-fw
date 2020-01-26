@@ -19,6 +19,7 @@
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
+#include <jetiexprotocol.h>
 #include "main.h"
 #include "adc.h"
 #include "comp.h"
@@ -35,7 +36,6 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "jetiexhandler.h"
 
 /* USER CODE END Includes */
 
@@ -173,15 +173,21 @@ int main(void)
 
   HAL_SYSCFG_EnableVREFBUF();
 
-  std::vector<TelemetryData> telemetryDataArray = {
-  		TelemetryData(1, "Current", "A", 1),
-  		TelemetryData(2, "Voltage", "V", 2),
-  		TelemetryData(3, "Capacity", "mAh", 0),
-  		TelemetryData(4, "Power", "W", 0)
+  TelemetryData *current = new TelemetryData(1, "Current", "A", 1);
+  TelemetryData *voltage = new TelemetryData(2, "Voltage", "V", 2);
+  TelemetryData *capacity = new TelemetryData(3, "Capacity", "mAh", 0);
+  TelemetryData *power = new TelemetryData(4, "Power", "W", 0);
+  std::vector<TelemetryData *> telemetryDataArray = {
+  		current,
+  		voltage,
+  		capacity,
+  		power
   };
 
-  JetiExHandler jetiProtocol;
-  jetiProtocol.telemetryDataArray = telemetryDataArray;
+  JetiExProtocol jetiExProtocol(0xA4A1, 0x555D, telemetryDataArray);
+  jetiExProtocol.onPacketSend = [](const uint8_t *packet, size_t size) {
+
+  };
 
   /* USER CODE END 2 */
  
@@ -199,7 +205,7 @@ int main(void)
 		  Error_Handler();
 	  }
 
-	  jetiProtocol.readByte(serialData[0]);
+	  jetiExProtocol.readByte(serialData[0]);
 
 	  switch (state) {
 	  case 0:
