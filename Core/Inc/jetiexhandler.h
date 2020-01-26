@@ -54,16 +54,23 @@ public:
 //	void setSentenceHandler(std::string command, std::function<void(const NmeaSentence&)> handler);
 
 	void readByte(uint8_t byte);
-	void readBuffer(uint8_t* buffer, size_t size);
+	void readBuffer(uint8_t *buffer, size_t size);
+
+	std::vector<TelemetryData> telemetryDataArray { };
+
 
 private:
 	uint16_t manufacturerId { 0xA4A1 };
 	uint16_t deviceId { 0x555D } ;
+
 //	std::unordered_map<std::string, std::function<void(NmeaSentence)>> sentenceHandlers;
 	ParserState state { Start };
 	std::string packet;
 	uint8_t packetLength { 0 };
 	uint16_t parsedChecksum;
+	uint8_t currentTextPacketPosition { 0 };
+
+
 //
 //	static const int maxSentenceParamLength { NMEA_MAX_SENTENCE_PARAM_LENGTH };
 //
@@ -72,7 +79,8 @@ private:
 //	bool validCommand(std::string txt);
 //	bool validParamChars(std::string txt);
 
-	uint8_t *createTelemetryTextPacket(const TelemetryData& data);
+	std::string createExTelemetryPacket();
+	std::string createTelemetryTextPacket(const TelemetryData& data);
 	uint8_t updateCrc(uint8_t crc, uint8_t crc_seed);
 	uint8_t calculateCrc8(uint8_t *crc, uint8_t crc_lenght);
 };

@@ -83,8 +83,9 @@ void JetiExHandler::readByte(uint8_t byte) {
 		if (releaseBusFlag) {
 			if (packet[4] == jetiboxRequest) {
 			} else if (packet[4] == telemetryRequest) {
-				TelemetryData data(1, "Current", "A");
-				uint8_t *packet = createTelemetryTextPacket(data);
+				const char *packet = createExTelemetryPacket().c_str();
+//				TelemetryData data(1, "Current", "A");
+//				uint8_t *packet = createTelemetryTextPacket(data);
 				for (int i = 0; i < 1000; i++) { }
 //				"\x9F\x10\xA1\xA4\x5D\x55\x00\x01\x39\x43\x75\x72\x72\x65\x6E\x74\x41\x00"; // Current
 			} else {
@@ -185,10 +186,39 @@ void JetiExHandler::readBuffer(uint8_t *buffer, size_t size) {
 //
 //
 
-uint8_t *JetiExHandler::createTelemetryTextPacket(const TelemetryData& data) {
+std::string JetiExHandler::createExTelemetryPacket() {
+
+	if (telemetryDataArray.size() <= 0) {
+		return NULL;
+	}
+
+	auto const& telemetryData = telemetryDataArray[currentTextPacketPosition];
+	if (currentTextPacketPosition >= telemetryDataArray.size()) {
+		currentTextPacketPosition = 0;
+	}
+	std::string textPacket = createTelemetryTextPacket(telemetryData);
+
+	uint8_t length = sizeof(textPacket) + 7;
+	std::string buffer;
+
+	buffer[0] = 0x3B;
+	buffer[1] = 0x01;
+	buffer[2] = length;
+	buffer[3] = packet[3];
+	buffer[4] = 0x3A;
+	buffer[5] = length - 1;
+
+	memcpy(&buffer[6], textPacket.c_str(), textPacket.size());
+	uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*)buffer.c_str(), textPacket.size() + 5);
+	buffer[textPacket.size() + 5] = (uint8_t) crc;
+	buffer[textPacket.size() + 6] = (uint8_t) (crc >> 8);
+
+	return buffer;
+}
+
+std::string JetiExHandler::createTelemetryTextPacket(const TelemetryData& data) {
 	uint8_t length = data.description.size() + data.unit.size() + 10;
-	std::unique_ptr<uint8_t[]> buffer;
-	buffer.reset(new uint8_t[length]);
+	std::string buffer;
 
 	buffer[0] = 0x9F;
 	buffer[1] = (length - 2) & 0x3F;
@@ -205,9 +235,9 @@ uint8_t *JetiExHandler::createTelemetryTextPacket(const TelemetryData& data) {
 	memcpy(&buffer[9], data.description.c_str(), data.description.size());
 	memcpy(&buffer[9 + data.description.size()], data.unit.c_str(), data.unit.size());
 
-	buffer[length - 1] = calculateCrc8(buffer.get() + 1, length - 2);
+	buffer[length - 1] = calculateCrc8((uint8_t *)buffer.c_str() + 1, length - 2);
 
-	return buffer.get();
+	return buffer;
 }
 
 
