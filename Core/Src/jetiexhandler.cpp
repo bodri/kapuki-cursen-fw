@@ -68,7 +68,7 @@ void JetiExHandler::readByte(uint8_t byte) {
 		break;
 	case ChecksumChar2: {
 		parsedChecksum += byte << 8;
-		uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*) packet.c_str(), packet.size());
+		uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)packet.c_str(), packet.size());
 		if (crc == parsedChecksum) {
 			state++;
 		} else {
@@ -89,7 +89,10 @@ void JetiExHandler::readByte(uint8_t byte) {
 				for (int i = 0; i < 1000; i++) { }
 //				"\x9F\x10\xA1\xA4\x5D\x55\x00\x01\x39\x43\x75\x72\x72\x65\x6E\x74\x41\x00"; // Current
 			} else {
+				const char *packet = createExDataPacket().c_str();
+				for (int i = 0; i < 1000; i++) { }
 
+//	uint8_t cucc[] = "\x9F\x54\xA1\xA4\x5D\x55\x00\x11\xE8\x23\x21\x1A\x00\x31\x1A\x00\x41\x1A\x00\x00";
 			}
 		}
 
@@ -117,79 +120,34 @@ void JetiExHandler::readBuffer(uint8_t *buffer, size_t size) {
 //
 // Private
 //
-//void JetiExParser::restart(void) {
-//	command.clear();
-//	params.clear();
-//	checksum = 0;
-//	parsedChecksum.clear();
-//}
-//
-//void JetiExParser::readSentence(std::string command, std::string params) {
-//	NmeaSentence sentence;
-//
-//	if (command.size() < 5 || !validCommand(command)) {
-//		sentence.isValid = false;
-//		return;
-//	}
-//
-//	sentence.command = command.substr(2, 3);
-//
-//    size_t start = 0;
-//    size_t stop = start;
-//
-//    while (stop < params.length()) {
-//        if (params[stop] == ',') {
-//        	sentence.parameters.push_back(params.substr(start, stop - start));
-//        	start = ++stop;
-//        } else {
-//            stop++;
-//        }
-//    }
-//
-//    sentence.parameters.push_back(params.substr(start, stop));
-//
-//	for (size_t i = 0; i < sentence.parameters.size(); i++) {
-//		if (!validParamChars(sentence.parameters[i])) {
-//			sentence.isValid = false;
-//			return;
-//		}
-//	}
-//
-//	std::function<void(const NmeaSentence&)> handler = sentenceHandlers[sentence.command];
-//	if (handler) {
-//		handler(sentence);
-//	}
-//}
-//
-//bool JetiExParser::validCommand(std::string txt) {
-//	for (size_t i = 0; i < txt.size(); i++) {
-//		if (isalnum(txt[i])) {
-//			return true;
-//		}
-//	}
-//
-//	return false;
-//}
-//
-//bool JetiExParser::validParamChars(std::string txt) {
-//	for (size_t i = 0; i < txt.size(); i++) {
-//		if (!isalnum(txt[i])) {
-//			if (txt[i] != '-' && txt[i] != '.') {
-//				return false;
-//			}
-//		}
-//	}
-//
-//	return true;
-//}
-//
-//
-//
+std::string JetiExHandler::createExDataPacket() {
+	if (telemetryDataArray.size() <= 0) {
+		return "";
+	}
+
+	std::string dataPacket = createTelemetryDataPacket();
+
+	uint8_t length = dataPacket.size() + 8;
+	std::string buffer;
+
+	buffer[0] = 0x3B;
+	buffer[1] = 0x01;
+	buffer[2] = length;
+	buffer[3] = packet[3];
+	buffer[4] = 0x3A;
+	buffer[5] = dataPacket.size();
+
+	memcpy(&buffer[6], dataPacket.c_str(), dataPacket.size());
+	uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*)buffer.c_str(), dataPacket.size() + 5);
+	buffer[dataPacket.size() + 6] = (uint8_t) crc;
+	buffer[dataPacket.size() + 7] = (uint8_t) (crc >> 8);
+
+	return buffer;
+}
 
 std::string JetiExHandler::createExTelemetryPacket() {
-
 	if (telemetryDataArray.size() <= 0) {
-		return NULL;
+		return "";
 	}
 
 	auto const& telemetryData = telemetryDataArray[currentTextPacketPosition];
@@ -198,20 +156,44 @@ std::string JetiExHandler::createExTelemetryPacket() {
 	}
 	std::string textPacket = createTelemetryTextPacket(telemetryData);
 
-	uint8_t length = sizeof(textPacket) + 7;
+	uint8_t length = textPacket.size() + 8;
 	std::string buffer;
 
 	buffer[0] = 0x3B;
 	buffer[1] = 0x01;
 	buffer[2] = length;
 	buffer[3] = packet[3];
-	buffer[4] = 0x3A;
-	buffer[5] = length - 1;
+	buffer[4] = 0x3B;
+	buffer[5] = textPacket.size();
 
 	memcpy(&buffer[6], textPacket.c_str(), textPacket.size());
 	uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*)buffer.c_str(), textPacket.size() + 5);
-	buffer[textPacket.size() + 5] = (uint8_t) crc;
-	buffer[textPacket.size() + 6] = (uint8_t) (crc >> 8);
+	buffer[textPacket.size() + 6] = (uint8_t) crc;
+	buffer[textPacket.size() + 7] = (uint8_t) (crc >> 8);
+
+	return buffer;
+}
+
+std::string JetiExHandler::createTelemetryDataPacket() {
+	uint8_t length = 3 * telemetryDataArray.size() + 8;
+	std::string buffer;
+
+	buffer[0] = 0x9F;
+	buffer[1] = (length - 2) & 0x3F;
+
+	buffer[2] = manufacturerId;
+	buffer[3] = manufacturerId >> 8;
+	buffer[4] = deviceId;
+	buffer[5] = deviceId >> 8;
+
+	buffer[6] = 0; // reserved
+
+	uint8_t i = 7;
+	for (auto&& telemetryData : telemetryDataArray) {
+		buffer[i++] = telemetryData.position;
+		buffer[i++] = telemetryData.value;
+		buffer[i++] = telemetryData.value >> 8;
+	}
 
 	return buffer;
 }
@@ -239,7 +221,6 @@ std::string JetiExHandler::createTelemetryTextPacket(const TelemetryData& data) 
 
 	return buffer;
 }
-
 
 //
 // Copy from `JETI Telemetry communication protocol`. OMG those variable names :-)

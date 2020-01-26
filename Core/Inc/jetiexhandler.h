@@ -20,7 +20,7 @@ class TelemetryData {
 	friend JetiExHandler;
 public:
 	TelemetryData(uint8_t position, std::string description, std::string unit) :
-			position(position), description(description), unit(unit) {
+			position(position), description(description), unit(unit), value(0) {
 	}
 	~TelemetryData() { }
 
@@ -28,6 +28,7 @@ private:
 	uint8_t position;
 	std::string description;
 	std::string unit;
+	uint16_t value;
 };
 
 enum ParserState {
@@ -70,20 +71,14 @@ private:
 	uint16_t parsedChecksum;
 	uint8_t currentTextPacketPosition { 0 };
 
-
-//
 //	static const int maxSentenceParamLength { NMEA_MAX_SENTENCE_PARAM_LENGTH };
-//
-//	void restart(void);
-//	void readSentence(std::string command, std::string params);
-//	bool validCommand(std::string txt);
-//	bool validParamChars(std::string txt);
 
+	std::string createExDataPacket();
 	std::string createExTelemetryPacket();
+	std::string createTelemetryDataPacket();
 	std::string createTelemetryTextPacket(const TelemetryData& data);
 	uint8_t updateCrc(uint8_t crc, uint8_t crc_seed);
 	uint8_t calculateCrc8(uint8_t *crc, uint8_t crc_lenght);
 };
-
 
 #endif /* __JETIEXPARSER__ */
