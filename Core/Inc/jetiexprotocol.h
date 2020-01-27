@@ -45,7 +45,6 @@ enum ParserState {
 	Length,
 	Packet,
 	ChecksumChar1,
-	ChecksumChar2,
 	Done
 };
 
@@ -80,10 +79,9 @@ private:
 	uint16_t parsedChecksum;
 	uint8_t currentTextPacketPosition { 0 };
 
-//	static const int maxSentenceParamLength { NMEA_MAX_SENTENCE_PARAM_LENGTH };
-
 	std::string createExDataPacket();
 	std::string createExTelemetryPacket();
+	void createJetiboxPacket(void);
 	std::string createTelemetryDataPacket();
 	std::string createTelemetryTextPacket(const TelemetryData *data);
 	uint8_t updateCrc(uint8_t crc, uint8_t crc_seed);
