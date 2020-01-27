@@ -16,13 +16,23 @@
 
 class JetiExProtocol;
 
+enum TelemetryDataType {
+	int6_t = 0,
+	int14_t,
+	int22_t = 4,
+	int30_t = 8,
+	zero = 100
+};
+
 class TelemetryData {
 	friend JetiExProtocol;
 public:
-	TelemetryData(uint8_t position, std::string description, std::string unit, uint8_t decimalPointPosition) :
+
+	TelemetryData(uint8_t position, std::string description, std::string unit, TelemetryDataType dataType, uint8_t decimalPointPosition) :
 			position(position),
 			description(description),
 			unit(unit),
+			dataType(dataType),
 			decimalPointPosition(decimalPointPosition),
 			value(0) { }
 	~TelemetryData() { }
@@ -31,10 +41,25 @@ public:
 		this->value = value;
 	}
 
+	uint8_t numberOfValueBytes() {
+		if (position == 0) {
+			return 0;
+		} else {
+			switch (dataType) {
+			case int6_t: return 2;
+			case int14_t: return 3;
+			case int22_t: return 4;
+			case int30_t: return 5;
+			default: return 0;
+			}
+		}
+	}
+
 private:
 	uint8_t position;
 	std::string description;
 	std::string unit;
+	TelemetryDataType dataType;
 	uint8_t decimalPointPosition;
 	int16_t value;
 };

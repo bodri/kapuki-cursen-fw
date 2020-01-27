@@ -173,11 +173,11 @@ int main(void)
 
   HAL_SYSCFG_EnableVREFBUF();
 
-  TelemetryData *sensor = new TelemetryData(0, "kapukiCS", "", 0);
-  TelemetryData *current = new TelemetryData(1, "Current", "A", 1);
-  TelemetryData *voltage = new TelemetryData(2, "Voltage", "V", 2);
-  TelemetryData *capacity = new TelemetryData(3, "Capacity", "mAh", 0);
-  TelemetryData *power = new TelemetryData(4, "Power", "W", 0);
+  TelemetryData *sensor = new TelemetryData(0, "kapukiCS", "", zero, 0);
+  TelemetryData *current = new TelemetryData(1, "Current", "A", int14_t, 1);
+  TelemetryData *voltage = new TelemetryData(2, "Voltage", "V", int14_t, 2);
+  TelemetryData *capacity = new TelemetryData(3, "Capacity", "mAh", int14_t, 0);
+  TelemetryData *power = new TelemetryData(4, "Power", "W", int14_t, 0);
   std::vector<TelemetryData *> telemetryDataArray = {
 		  sensor,
 		  current,

@@ -9,7 +9,7 @@
 #include "crc.h"
 
 #include <memory>
-#include <algorithm>
+#include <numeric>
 
 #define CRC8_POLYNOMIAL 0x07
 
@@ -167,11 +167,10 @@ void JetiExProtocol::createJetiboxPacket(void) {
 }
 
 std::string JetiExProtocol::createTelemetryDataPacket() {
-	uint8_t numberOfTelemetryData = std::count_if(telemetryDataArray.begin(), telemetryDataArray.end(),
-			[](const auto& telemetryData) { return telemetryData->position > 0; });
-
 	std::string buffer;
-	uint8_t length = 3 * numberOfTelemetryData + 8;
+	uint8_t length = std::accumulate(telemetryDataArray.begin(), telemetryDataArray.end(), 8,
+			[](int n, auto const& telemetryData) { return n + telemetryData->numberOfValueBytes(); });
+//	uint8_t length = telemetryDataValueBytes + 8;
 	buffer.resize(length);
 
 	buffer[0] = 0x9F;
@@ -183,18 +182,26 @@ std::string JetiExProtocol::createTelemetryDataPacket() {
 	buffer[6] = 0; // reserved
 
 	uint8_t i = 7;
-	for (const auto& telemetryData : telemetryDataArray) {
-		if (telemetryData->position > 0) {
+	for (auto const& telemetryData : telemetryDataArray) {
+		auto bytes = telemetryData->numberOfValueBytes() - 1;
+		if (bytes > 0) {
+			buffer[i++] = ((telemetryData->position & 0x0F) << 4) | (telemetryData->dataType & 0x0F);
 			buffer[i++] = (telemetryData->value >= 0 ? 0x00 : 0x80) |
 					((telemetryData->decimalPointPosition & 0x03) << 6) |
-					1; // data type
-			buffer[i++] = telemetryData->value;
-			buffer[i++] = telemetryData->value >> 8;
+					(telemetryData->value & 0x1F);
+			if (bytes > 1) {
+				buffer[i++] = telemetryData->value >> 8;
+			}
+			if (bytes > 2) {
+				buffer[i++] = telemetryData->value >> 16;
+			}
+			if (bytes > 3) {
+				buffer[i++] = telemetryData->value >> 24;
+			}
 		}
 	}
 
 	buffer[length - 1] = calculateCrc8((uint8_t *)buffer.data() + 1, length - 2);
-
 	return buffer;
 }
 
@@ -217,7 +224,6 @@ std::string JetiExProtocol::createTelemetryTextPacket(const TelemetryData *data)
 	std::copy(std::begin(data->unit), std::end(data->unit), std::begin(buffer) + 9 + data->description.size());
 
 	buffer[length - 1] = calculateCrc8((uint8_t *)buffer.data() + 1, length - 2);
-
 	return buffer;
 }
 
