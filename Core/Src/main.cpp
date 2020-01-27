@@ -309,45 +309,45 @@ int main(void)
 //				 Error_Handler();
 //			  }
 		  } else {
-			  uint8_t cucc[] = "\x9F\x54\xA1\xA4\x5D\x55\x00\x11\xE8\x23\x21\x1A\x00\x31\x1A\x00\x41\x1A\x00\x00";
-			  uint8_t data[128];
-			  data[0] = 0x3B;
-			  data[1] = 0x01;
-			  data[2] = sizeof(cucc) + 7; //len
-			  data[3] = packetId; //0x08 packetId
-			  data[4] = 0x3A;
-			  data[5] = sizeof(cucc) - 1;
-
-			  // calculate current
-//			  float rawCurrent = ((3.3 * adc2Readings[0] / 4096) - 1.65) / 0.012; // (Vout - Vref) / (Rsense * Av)
-			  float rawCurrent = 1.33;
-			  uint16_t current = rawCurrent * 10;
-			  cucc[8] = (uint8_t)current;
-			  cucc[9] = (uint8_t)((current >> 8) & 0x1F) | 0x20;
-
-			  // calculate voltage
-//			  float rawVoltage = (3.3 * adc1Readings[0] / 4096) / 0.0625;
-			  float rawVoltage = 9.56;
-			  uint16_t voltage = rawVoltage * 100;
-			  cucc[11] = (uint8_t)voltage;
-			  cucc[12] = (uint8_t)((voltage >> 8) & 0x1F) | 0x40;
-
-			  // calculate power
-			  uint16_t power = rawCurrent * rawVoltage * 100;
-			  cucc[17] = (uint8_t)power;
-			  cucc[18] = (uint8_t)(power >> 8) & 0x1F;
-
-			  uint8_t crc8 = calculateCrc8(cucc + 1, sizeof(cucc) - 3);
-			  cucc[sizeof(cucc) - 2] = crc8;
-
-			  memcpy(&data[6], cucc, sizeof(cucc));
-			  uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*) data, sizeof(cucc) + 5);
-			  data[sizeof(cucc) + 5] = (uint8_t)crc;
-			  data[sizeof(cucc) + 6] = (uint8_t)(crc >> 8);
-
-			  if (HAL_UART_Transmit(&huart1, (uint8_t *)data, sizeof(cucc) + 7, 1000) != HAL_OK) {
-				 Error_Handler();
-			  }
+//			  uint8_t cucc[] = "\x9F\x54\xA1\xA4\x5D\x55\x00\x11\xE8\x23\x21\x1A\x00\x31\x1A\x00\x41\x1A\x00\x00";
+//			  uint8_t data[128];
+//			  data[0] = 0x3B;
+//			  data[1] = 0x01;
+//			  data[2] = sizeof(cucc) + 7; //len
+//			  data[3] = packetId; //0x08 packetId
+//			  data[4] = 0x3A;
+//			  data[5] = sizeof(cucc) - 1;
+//
+//			  // calculate current
+////			  float rawCurrent = ((3.3 * adc2Readings[0] / 4096) - 1.65) / 0.012; // (Vout - Vref) / (Rsense * Av)
+//			  float rawCurrent = 1.33;
+//			  uint16_t current = rawCurrent * 10;
+//			  cucc[8] = (uint8_t)current;
+//			  cucc[9] = (uint8_t)((current >> 8) & 0x1F) | 0x20;
+//
+//			  // calculate voltage
+////			  float rawVoltage = (3.3 * adc1Readings[0] / 4096) / 0.0625;
+//			  float rawVoltage = 9.56;
+//			  uint16_t voltage = rawVoltage * 100;
+//			  cucc[11] = (uint8_t)voltage;
+//			  cucc[12] = (uint8_t)((voltage >> 8) & 0x1F) | 0x40;
+//
+//			  // calculate power
+//			  uint16_t power = rawCurrent * rawVoltage * 100;
+//			  cucc[17] = (uint8_t)power;
+//			  cucc[18] = (uint8_t)(power >> 8) & 0x1F;
+//
+//			  uint8_t crc8 = calculateCrc8(cucc + 1, sizeof(cucc) - 3);
+//			  cucc[sizeof(cucc) - 2] = crc8;
+//
+//			  memcpy(&data[6], cucc, sizeof(cucc));
+//			  uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*) data, sizeof(cucc) + 5);
+//			  data[sizeof(cucc) + 5] = (uint8_t)crc;
+//			  data[sizeof(cucc) + 6] = (uint8_t)(crc >> 8);
+//
+//			  if (HAL_UART_Transmit(&huart1, (uint8_t *)data, sizeof(cucc) + 7, 1000) != HAL_OK) {
+//				 Error_Handler();
+//			  }
 		  }
 
 		  busReleased = false;

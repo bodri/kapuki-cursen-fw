@@ -67,12 +67,12 @@ void JetiExProtocol::readByte(uint8_t byte) {
 				if (packet[4] == jetiboxRequest) {
 				} else if (packet[4] == telemetryRequest) {
 					std::string packet = createExTelemetryPacket();
-					onPacketSend((uint8_t *)packet.data(), packet.size());
+//					onPacketSend((uint8_t *)packet.data(), packet.size());
 				} else {
 					std::string packet = createExDataPacket();
-	//				onPacketSend((uint8_t *)packet.c_str(), packet.size());
-					uint8_t *cucc = (uint8_t *)packet.c_str();
-					for (int i = 0; i < 1000; i++) { }
+					onPacketSend((uint8_t *)packet.c_str(), packet.size());
+//					uint8_t *cucc = (uint8_t *)packet.c_str();
+//					for (int i = 0; i < 1000; i++) { }
 				}
 			}
 		}
@@ -185,11 +185,11 @@ std::string JetiExProtocol::createTelemetryDataPacket() {
 	uint8_t i = 7;
 	for (const auto& telemetryData : telemetryDataArray) {
 		if (telemetryData->position > 0) {
-			buffer[i++] = telemetryData->position;
-			buffer[i++] = telemetryData->value;
-			buffer[i++] = (telemetryData->value > 0 ? 0x00 : 0x80) |
+			buffer[i++] = (telemetryData->value >= 0 ? 0x00 : 0x80) |
 					((telemetryData->decimalPointPosition & 0x03) << 6) |
-					((telemetryData->value >> 8) & 0x1F);
+					1; // data type
+			buffer[i++] = telemetryData->value;
+			buffer[i++] = telemetryData->value >> 8;
 		}
 	}
 
