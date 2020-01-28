@@ -67,12 +67,10 @@ void JetiExProtocol::readByte(uint8_t byte) {
 				if (packet[4] == jetiboxRequest) {
 				} else if (packet[4] == telemetryRequest) {
 					std::string packet = createExTelemetryPacket();
-//					onPacketSend((uint8_t *)packet.data(), packet.size());
+					onPacketSend((uint8_t *)packet.data(), packet.size());
 				} else {
 					std::string packet = createExDataPacket();
 					onPacketSend((uint8_t *)packet.c_str(), packet.size());
-//					uint8_t *cucc = (uint8_t *)packet.c_str();
-//					for (int i = 0; i < 1000; i++) { }
 				}
 			}
 		}
@@ -110,9 +108,10 @@ std::string JetiExProtocol::createExDataPacket() {
 	buffer[5] = dataPacket.size();
 
 	std::copy(std::begin(dataPacket), std::end(dataPacket), std::begin(buffer) + 6);
-	uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*)buffer.data(), dataPacket.size() + 5);
-	buffer[dataPacket.size() + 6] = (uint8_t) crc;
-	buffer[dataPacket.size() + 7] = (uint8_t) (crc >> 8);
+
+	uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*)buffer.data(), length - 2);
+	buffer[length - 2] = (uint8_t) crc;
+	buffer[length - 1] = (uint8_t) (crc >> 8);
 
 	return buffer;
 }
@@ -140,6 +139,7 @@ std::string JetiExProtocol::createExTelemetryPacket() {
 	buffer[5] = textPacket.size();
 
 	std::copy(std::begin(textPacket), std::end(textPacket), std::begin(buffer) + 6);
+
 	uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)buffer.data(), length - 2);
 	buffer[length - 2] = (uint8_t)crc;
 	buffer[length - 1] = (uint8_t)(crc >> 8);
@@ -170,11 +170,10 @@ std::string JetiExProtocol::createTelemetryDataPacket() {
 	std::string buffer;
 	uint8_t length = std::accumulate(telemetryDataArray.begin(), telemetryDataArray.end(), 8,
 			[](int n, auto const& telemetryData) { return n + telemetryData->numberOfValueBytes(); });
-//	uint8_t length = telemetryDataValueBytes + 8;
 	buffer.resize(length);
 
 	buffer[0] = 0x9F;
-	buffer[1] = (length - 2) & 0x3F;
+	buffer[1] = 0x40 | ((length - 2) & 0x3F);
 	buffer[2] = manufacturerId;
 	buffer[3] = manufacturerId >> 8;
 	buffer[4] = deviceId;
@@ -186,11 +185,11 @@ std::string JetiExProtocol::createTelemetryDataPacket() {
 		auto bytes = telemetryData->numberOfValueBytes() - 1;
 		if (bytes > 0) {
 			buffer[i++] = ((telemetryData->position & 0x0F) << 4) | (telemetryData->dataType & 0x0F);
-			buffer[i++] = (telemetryData->value >= 0 ? 0x00 : 0x80) |
-					((telemetryData->decimalPointPosition & 0x03) << 6) |
-					(telemetryData->value & 0x1F);
+			buffer[i++] = telemetryData->value;
 			if (bytes > 1) {
-				buffer[i++] = telemetryData->value >> 8;
+				buffer[i++] = (telemetryData->value >= 0 ? 0x00 : 0x80) |
+						((telemetryData->decimalPointPosition & 0x03) << 5) |
+						((telemetryData->value >> 8)  & 0x1F);
 			}
 			if (bytes > 2) {
 				buffer[i++] = telemetryData->value >> 16;
