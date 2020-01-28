@@ -59,6 +59,9 @@
 
 volatile uint16_t adc1Readings[4]; //ADC Readings
 volatile uint16_t adc2Readings[4]; //ADC Readings
+volatile float measuredCurrent;
+volatile float measuredVoltage;
+
 uint8_t serialData[1];
 
 /* USER CODE END PV */
@@ -73,9 +76,10 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN 0 */
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-//	if (htim->Instance == TIM4) {
-//		shouldSendData = true;
-//	}
+	if (htim->Instance == TIM4) {
+		measuredCurrent = ((3.3 * adc2Readings[0] / 4096) - 1.65) / 0.012; // (Vout - Vref) / (Rsense * Av)
+		measuredVoltage = (3.3 * adc1Readings[0] / 4096) / 0.0625;
+	}
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
@@ -125,11 +129,13 @@ int main(void)
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
 
+  HAL_SYSCFG_EnableVREFBUF();
+
   // Calibrate ADC
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
   HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
 
-  // Set REF to 1.6V
+  // Set REF to 1.65V
   HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
   HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2016);
 
@@ -137,8 +143,6 @@ int main(void)
   HAL_ADC_Start_DMA(&hadc2, (uint32_t *)adc2Readings, 1);
 
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
-
-  HAL_SYSCFG_EnableVREFBUF();
 
   TelemetryData *sensor = new TelemetryData(0, "kapuki-CS", "", zero, 0);
   TelemetryData *current = new TelemetryData(1, "Current", "A", int14_t, 1);
@@ -167,10 +171,10 @@ int main(void)
   //			  // calculate power
   //			  uint16_t power = rawCurrent * rawVoltage * 100;
 
-  current->setValue(13.3);
-  voltage->setValue(956);
-  capacity->setValue(26);
-  power->setValue(1.33 * 9.56 * 100);
+//  current->setValue(13.3);
+//  voltage->setValue(956);
+//  capacity->setValue(26);
+//  power->setValue(1.33 * 9.56 * 100);
 
   /* USER CODE END 2 */
  
@@ -188,34 +192,12 @@ int main(void)
 		  Error_Handler();
 	  }
 
-	  jetiExProtocol.readByte(serialData[0]);
+	  current->setValue(measuredCurrent * 10);
+	  voltage->setValue(measuredVoltage * 100);
+	  capacity->setValue(26);
+	  power->setValue(measuredCurrent * measuredVoltage);
 
-//
-//	  HAL_Delay(5);
-//	  if (UART_CheckIdleState(&huart1) == HAL_TIMEOUT) {
-//		/* Timeout occurred */
-//		return HAL_TIMEOUT;
-//	  }
-//	if (shouldSendData) {
-//		uint8_t data[8];
-//		data[0] = 0x69;
-//		data[1] = adc2Readings[0];
-//		data[2] = adc1Readings[0];
-//		data[3] = ((adc2Readings[0] >> 4) & 0xf0)
-//				| ((adc1Readings[0] >> 8) & 0x0f);
-//		data[4] = adc1Readings[1];
-//		data[5] = adc1Readings[2];
-//		data[6] = ((adc1Readings[1] >> 4) & 0xf0)
-//				| ((adc1Readings[2] >> 8) & 0x0f);
-//
-//		uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*) data, sizeof(data) - 1);
-//		data[7] = (uint8_t) crc;
-//		if (HAL_UART_Transmit_DMA(&huart1, data, sizeof(data)) != HAL_OK) {
-//			Error_Handler();
-//		}
-//
-//		shouldSendData = false;
-//	}
+	  jetiExProtocol.readByte(serialData[0]);
   }
   /* USER CODE END 3 */
 }
