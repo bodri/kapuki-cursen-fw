@@ -77,8 +77,8 @@ void SystemClock_Config(void);
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	if (htim->Instance == TIM4) {
-		measuredCurrent = ((3.3 * adc2Readings[0] / 4096) - 1.65) / 0.012; // (Vout - Vref) / (Rsense * Av)
-		measuredVoltage = (3.3 * adc1Readings[0] / 4096) / 0.0625;
+		measuredCurrent = ((3.3167 * adc2Readings[0] / 4096) - 1.6549) / 0.012; // (Vout - Vref) / (Rsense * Av)
+		measuredVoltage = (3.3167 * adc1Readings[0] / 4096) / 0.06183;
 	}
 }
 
@@ -129,15 +129,13 @@ int main(void)
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
 
-  HAL_SYSCFG_EnableVREFBUF();
-
   // Calibrate ADC
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
   HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
 
   // Set REF to 1.65V
   HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
-  HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2016);
+  HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2011);
 
   HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc1Readings, 2);
   HAL_ADC_Start_DMA(&hadc2, (uint32_t *)adc2Readings, 1);
