@@ -19,7 +19,6 @@
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
-#include <jetiexprotocol.h>
 #include "main.h"
 #include "adc.h"
 #include "comp.h"
@@ -35,7 +34,7 @@
 
 #include <stdbool.h>
 #include <string.h>
-
+#include "jetiexprotocol.h"
 
 /* USER CODE END Includes */
 
@@ -59,8 +58,10 @@
 
 volatile uint16_t adc1Readings[4]; //ADC Readings
 volatile uint16_t adc2Readings[4]; //ADC Readings
-volatile float measuredCurrent;
-volatile float measuredVoltage;
+volatile double measuredCurrent = 0;
+volatile double measuredVoltage = 0;
+volatile double measuredPower = 0;
+volatile double measuredCapacity = 0;
 
 uint8_t serialData[1];
 
@@ -77,15 +78,11 @@ void SystemClock_Config(void);
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	if (htim->Instance == TIM4) {
-		measuredCurrent = ((3.3167 * adc2Readings[0] / 4096) - 1.6549) / 0.012; // (Vout - Vref) / (Rsense * Av)
-		measuredVoltage = (3.3167 * adc1Readings[0] / 4096) / 0.06183;
+		measuredCurrent = ((3.0 * adc2Readings[0] / 4096.0) - 1.5) / 0.012; // (Vout - Vref) / (Rsense * Av)
+		measuredVoltage = (3.0 * adc1Readings[0] / 4096.0) / 0.058968058968059;
+		measuredPower = measuredCurrent * measuredVoltage;
+		measuredCapacity += measuredCurrent / 360.0; // mAh
 	}
-}
-
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-//	if (serialData[0] == 0x3E && serialData[1] == 0x01)  {
-//		shouldSendData = true;
-//	}
 }
 
 /* USER CODE END 0 */
@@ -99,7 +96,6 @@ int main(void)
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
-  
 
   /* MCU Configuration--------------------------------------------------------*/
 
@@ -133,11 +129,11 @@ int main(void)
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
   HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
 
-  // Set REF to 1.65V
+  // Set REF to 1.5V
   HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
-  HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2011);
+  HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2031); // Calibrated to zero when no load
 
-  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc1Readings, 2);
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc1Readings, 1);
   HAL_ADC_Start_DMA(&hadc2, (uint32_t *)adc2Readings, 1);
 
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
@@ -162,21 +158,7 @@ int main(void)
 	  }
   };
 
-  //			  // calculate current
-  ////			  float rawCurrent = ((3.3 * adc2Readings[0] / 4096) - 1.65) / 0.012; // (Vout - Vref) / (Rsense * Av)
-  //			  // calculate voltage
-  ////			  float rawVoltage = (3.3 * adc1Readings[0] / 4096) / 0.0625;
-  //			  // calculate power
-  //			  uint16_t power = rawCurrent * rawVoltage * 100;
-
-//  current->setValue(13.3);
-//  voltage->setValue(956);
-//  capacity->setValue(26);
-//  power->setValue(1.33 * 9.56 * 100);
-
   /* USER CODE END 2 */
- 
- 
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -190,10 +172,11 @@ int main(void)
 		  Error_Handler();
 	  }
 
-	  current->setValue(measuredCurrent * 10);
-	  voltage->setValue(measuredVoltage * 100);
-	  capacity->setValue(26);
-	  power->setValue(measuredCurrent * measuredVoltage);
+	  current->setValue(measuredCurrent * 10.0);
+	  voltage->setValue(measuredVoltage * 100.0);
+	  power->setValue(measuredPower);
+	  capacity->setValue(measuredCapacity);
+
 
 	  jetiExProtocol.readByte(serialData[0]);
   }
