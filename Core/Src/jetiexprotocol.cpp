@@ -13,7 +13,7 @@
 
 #define CRC8_POLYNOMIAL 0x07
 
-void JetiExProtocol::readByte(uint8_t byte) {
+bool JetiExProtocol::readByte(uint8_t byte) {
 	static const uint8_t startChar1 = 0x3E;
 	static const uint8_t startChar2 = 0x3D;
 	static const uint8_t releaseBusFlag = 0x01;
@@ -76,8 +76,11 @@ void JetiExProtocol::readByte(uint8_t byte) {
 		}
 
 		state = Start;
+		return true;
 		break;
 	}
+
+	return false;
 }
 
 void JetiExProtocol::readBuffer(uint8_t *buffer, size_t size) {

@@ -89,7 +89,7 @@ public:
 
 	std::function<void(const uint8_t *packet, size_t size)> onPacketSend;
 
-	void readByte(uint8_t byte);
+	bool readByte(uint8_t byte);
 	void readBuffer(uint8_t *buffer, size_t size);
 
 private:

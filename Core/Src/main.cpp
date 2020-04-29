@@ -64,6 +64,8 @@ volatile double measuredPower = 0;
 volatile double measuredCapacity = 0;
 
 uint8_t serialData[1];
+bool exBusSpeedDidSet { false };
+uint32_t charsDidRead { 0 };
 
 /* USER CODE END PV */
 
@@ -172,13 +174,23 @@ int main(void)
 		  Error_Handler();
 	  }
 
+	  charsDidRead++;
 	  current->setValue(measuredCurrent * 10.0);
 	  voltage->setValue(measuredVoltage * 100.0);
 	  power->setValue(measuredPower);
 	  capacity->setValue(measuredCapacity);
 
+	  bool validPacket = jetiExProtocol.readByte(serialData[0]);
+	  if (!exBusSpeedDidSet && !validPacket && charsDidRead > 2000) {
+		  // Switch to low speed: 125kbaud
+		  MX_USART1_UART_Init_low_speed();
+		  charsDidRead = 0;
+	  }
 
-	  jetiExProtocol.readByte(serialData[0]);
+	  if (validPacket) {
+		  exBusSpeedDidSet = true;
+		  for (int i =0; i < 10; i++) { }
+	  }
   }
   /* USER CODE END 3 */
 }

@@ -28,6 +28,8 @@
 
 /* USER CODE BEGIN Includes */
 
+void MX_USART1_UART_Init_low_speed(void);
+
 /* USER CODE END Includes */
 
 extern UART_HandleTypeDef huart1;
