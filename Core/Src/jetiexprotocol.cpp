@@ -1,8 +1,14 @@
-/*
- * jetiexprotocol.cpp
+/**
+ * @file jetiexprotocol.cpp
+ * @brief JETI EX protocol handler.
  *
- *  Created on: 25 Jan 2020
- *      Author: gvaradi
+ * @author Varadi, Gyorgy, aka bodri
+ * Contact: bodri@bodrico.com
+ *
+ * @bug No known bugs.
+ *
+ * MIT license, all text above must be included in any redistribution
+ *
  */
 
 #include <jetiexprotocol.h>
@@ -83,10 +89,12 @@ bool JetiExProtocol::readByte(uint8_t byte) {
 	return false;
 }
 
-void JetiExProtocol::readBuffer(uint8_t *buffer, size_t size) {
+bool JetiExProtocol::readBuffer(uint8_t *buffer, size_t size) {
+	uint32_t receivedValidPacket { 0 };
 	for (size_t i = 0; i < size; ++i) {
-		readByte(buffer[i]);
+		receivedValidPacket += readByte(buffer[i]);
 	}
+	return receivedValidPacket > 0;
 }
 
 //
@@ -172,7 +180,7 @@ void JetiExProtocol::createJetiboxPacket(void) {
 std::string JetiExProtocol::createTelemetryDataPacket() {
 	std::string buffer;
 	uint8_t length = std::accumulate(telemetryDataArray.begin(), telemetryDataArray.end(), 8,
-			[](int n, auto const& telemetryData) { return n + telemetryData->numberOfValueBytes(); });
+			[](int n, auto const& telemetryData) { return n + telemetryData->numberOfValueBytes() + 1; });
 	buffer.resize(length);
 
 	buffer[0] = 0x9F;
@@ -185,21 +193,22 @@ std::string JetiExProtocol::createTelemetryDataPacket() {
 
 	uint8_t i = 7;
 	for (auto const& telemetryData : telemetryDataArray) {
-		auto bytes = telemetryData->numberOfValueBytes() - 1;
+		auto bytes = telemetryData->numberOfValueBytes();
 		if (bytes > 0) {
 			buffer[i++] = ((telemetryData->position & 0x0F) << 4) | (telemetryData->dataType & 0x0F);
-			buffer[i++] = telemetryData->value;
+			buffer[i] = telemetryData->value;
 			if (bytes > 1) {
-				buffer[i++] = (telemetryData->value >= 0 ? 0x00 : 0x80) |
-						((telemetryData->decimalPointPosition & 0x03) << 5) |
-						((telemetryData->value >> 8)  & 0x1F);
+				buffer[++i] = telemetryData->value >> 8;
 			}
 			if (bytes > 2) {
-				buffer[i++] = telemetryData->value >> 16;
+				buffer[++i] = telemetryData->value >> 16;
 			}
 			if (bytes > 3) {
-				buffer[i++] = telemetryData->value >> 24;
+				buffer[++i] = telemetryData->value >> 24;
 			}
+			buffer[i] = (telemetryData->value >= 0 ? 0x00 : 0x80)
+					| ((telemetryData->decimalPointPosition & 0x03) << 5)
+					| (buffer[i] & 0x1F);
 		}
 	}
 

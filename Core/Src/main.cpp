@@ -64,8 +64,9 @@ volatile double measuredPower = 0;
 volatile double measuredCapacity = 0;
 
 uint8_t serialData[1];
-bool exBusSpeedDidSet { false };
-uint32_t charsDidRead { 0 };
+bool jetiExBusInSync { false };
+uint32_t numberOfCharsDidRead { 0 };
+bool useExBusHighSpeed { true };
 
 /* USER CODE END PV */
 
@@ -174,22 +175,22 @@ int main(void)
 		  Error_Handler();
 	  }
 
-	  charsDidRead++;
-	  current->setValue(measuredCurrent * 10.0);
-	  voltage->setValue(measuredVoltage * 100.0);
-	  power->setValue(measuredPower);
-	  capacity->setValue(measuredCapacity);
+	  numberOfCharsDidRead++;
+	  current->setValue((int16_t)(measuredCurrent * 10.0));
+	  voltage->setValue((int16_t)(measuredVoltage * 100.0));
+	  power->setValue((int16_t)(measuredPower));
+	  capacity->setValue((int16_t)(measuredCapacity));
 
 	  bool validPacket = jetiExProtocol.readByte(serialData[0]);
-	  if (!exBusSpeedDidSet && !validPacket && charsDidRead > 2000) {
-		  // Switch to low speed: 125kbaud
-		  MX_USART1_UART_Init_low_speed();
-		  charsDidRead = 0;
+	  if (!jetiExBusInSync && !validPacket && numberOfCharsDidRead > 1000) {
+		  // Toggle EX BUS speed: 125 kBaud (LS) or 250 kBaud (HS)
+		  useExBusHighSpeed ? MX_USART1_UART_Init_low_speed() : MX_USART1_UART_Init();
+		  useExBusHighSpeed = !useExBusHighSpeed;
+		  numberOfCharsDidRead = 0;
 	  }
 
 	  if (validPacket) {
-		  exBusSpeedDidSet = true;
-		  for (int i =0; i < 10; i++) { }
+		  jetiExBusInSync = true;
 	  }
   }
   /* USER CODE END 3 */

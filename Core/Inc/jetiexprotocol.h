@@ -1,12 +1,18 @@
-/*
- * jetiexprotocol.h
+/**
+ * @file jetiexprotocol.h
+ * @brief JETI EX protocol handler.
  *
- *  Created on: 25 Jan 2020
- *      Author: gvaradi
+ * @author Varadi, Gyorgy, aka bodri
+ * Contact: bodri@bodrico.com
+ *
+ * @bug No known bugs.
+ *
+ * MIT license, all text above must be included in any redistribution
+ *
  */
 
-#ifndef __JETIEXPROTOCOL__
-#define __JETIEXPROTOCOL__
+#ifndef __JETIEXPROTOCOL_H__
+#define __JETIEXPROTOCOL_H__
 
 #include <stdint.h>
 #include <string>
@@ -37,21 +43,25 @@ public:
 			value(0) { }
 	~TelemetryData() { }
 
+	void setValue(int8_t value) {
+		this->value = value;
+	}
+
 	void setValue(int16_t value) {
 		this->value = value;
 	}
 
+	void setValue(int32_t value) {
+		this->value = value;
+	}
+
 	uint8_t numberOfValueBytes() {
-		if (position == 0) {
-			return 0;
-		} else {
-			switch (dataType) {
-			case int6_t: return 2;
-			case int14_t: return 3;
-			case int22_t: return 4;
-			case int30_t: return 5;
+		switch (dataType) {
+			case int6_t: return 1;
+			case int14_t: return 2;
+			case int22_t: return 3;
+			case int30_t: return 4;
 			default: return 0;
-			}
 		}
 	}
 
@@ -61,7 +71,7 @@ private:
 	std::string unit;
 	TelemetryDataType dataType;
 	uint8_t decimalPointPosition;
-	int16_t value;
+	int32_t value;
 };
 
 enum ParserState {
@@ -90,7 +100,7 @@ public:
 	std::function<void(const uint8_t *packet, size_t size)> onPacketSend;
 
 	bool readByte(uint8_t byte);
-	void readBuffer(uint8_t *buffer, size_t size);
+	bool readBuffer(uint8_t *buffer, size_t size);
 
 private:
 	uint16_t manufacturerId;
@@ -113,4 +123,4 @@ private:
 	uint8_t calculateCrc8(uint8_t *crc, uint8_t crc_lenght);
 };
 
-#endif /* __JETIEXPROTOCOL__ */
+#endif /* __JETIEXPROTOCOL_H__ */
