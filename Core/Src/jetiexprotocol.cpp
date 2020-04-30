@@ -209,6 +209,7 @@ std::string JetiExProtocol::createTelemetryDataPacket() {
 			buffer[i] = (telemetryData->value >= 0 ? 0x00 : 0x80)
 					| ((telemetryData->decimalPointPosition & 0x03) << 5)
 					| (buffer[i] & 0x1F);
+			i++;
 		}
 	}
 
