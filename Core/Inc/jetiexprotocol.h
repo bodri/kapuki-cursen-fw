@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <map>
 #include <functional>
 
 class JetiExProtocol;
@@ -99,6 +100,8 @@ public:
 
 	std::function<void(const uint8_t *packet, size_t size)> onPacketSend;
 
+	void addChannelObserver(uint8_t channel, std::function<void(uint16_t channelData)> callback) { channelDataObservers[channel] = callback; }
+
 	bool readByte(uint8_t byte);
 	bool readBuffer(uint8_t *buffer, size_t size);
 
@@ -107,6 +110,7 @@ private:
 	uint16_t deviceId;
 
 	std::vector<TelemetryData *> telemetryDataArray;
+	std::map<uint8_t, std::function<void(uint16_t value)>> channelDataObservers;
 
 	ParserState state { Start };
 	std::string packet;
@@ -114,6 +118,7 @@ private:
 	uint16_t parsedChecksum;
 	uint8_t currentTextPacketPosition { 0 };
 
+	void decodeChannelData();
 	std::string createExDataPacket();
 	std::string createExTelemetryPacket();
 	void createJetiboxPacket(void);

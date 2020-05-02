@@ -23,6 +23,7 @@ bool JetiExProtocol::readByte(uint8_t byte) {
 	static const uint8_t startChar1 = 0x3E;
 	static const uint8_t startChar2 = 0x3D;
 	static const uint8_t releaseBusFlag = 0x01;
+	static const uint8_t channelData = 0x31;
 	static const uint8_t telemetryRequest = 0x3A;
 	static const uint8_t jetiboxRequest = 0x3B;
 
@@ -70,13 +71,17 @@ bool JetiExProtocol::readByte(uint8_t byte) {
 			for (int i = 0; i < 500; i++) { }
 
 			if (releaseBusFlag) {
-				if (packet[4] == jetiboxRequest) {
-				} else if (packet[4] == telemetryRequest) {
-					std::string packet = createExTelemetryPacket();
-					onPacketSend((uint8_t *)packet.data(), packet.size());
+				uint8_t dataIdentifier = packet[4];
+
+				if (dataIdentifier == channelData) {
+					decodeChannelData();
+				} else if (dataIdentifier == jetiboxRequest) {
+				} else if (dataIdentifier == telemetryRequest) {
+					std::string telemetryPacket = createExTelemetryPacket();
+					onPacketSend((uint8_t *)telemetryPacket.data(), telemetryPacket.size());
 				} else {
-					std::string packet = createExDataPacket();
-					onPacketSend((uint8_t *)packet.c_str(), packet.size());
+					std::string telemetryPacket = createExDataPacket();
+					onPacketSend((uint8_t *)telemetryPacket.c_str(), telemetryPacket.size());
 				}
 			}
 		}
@@ -100,6 +105,17 @@ bool JetiExProtocol::readBuffer(uint8_t *buffer, size_t size) {
 //
 // Private
 //
+void JetiExProtocol::decodeChannelData() {
+	uint8_t numberOfChannels = packet[5] / 2; // channel data on 2 bytes
+
+	for (int i = 0; i < numberOfChannels; i++) {
+		uint16_t channelData = packet[6 + i * 2];
+		if (channelDataObservers[i] != nullptr) {
+			channelDataObservers[i](channelData);
+		}
+	}
+}
+
 std::string JetiExProtocol::createExDataPacket() {
 	if (telemetryDataArray.size() <= 0) {
 		return "";

@@ -161,6 +161,10 @@ int main(void)
 	  }
   };
 
+  jetiExProtocol.addChannelObserver(1, [](uint16_t channelData) {
+	  for (int i = 0; i < 10; i++) { }
+  });
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
