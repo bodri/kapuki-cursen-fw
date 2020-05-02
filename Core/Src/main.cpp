@@ -161,8 +161,10 @@ int main(void)
 	  }
   };
 
-  jetiExProtocol.addChannelObserver(1, [](uint16_t channelData) {
-	  for (int i = 0; i < 10; i++) { }
+  jetiExProtocol.addChannelObserver(8, [](uint16_t channelData) {
+	  if (channelData == 8000) {
+		  measuredCapacity = 0;
+	  }
   });
 
   /* USER CODE END 2 */

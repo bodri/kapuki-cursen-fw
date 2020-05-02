@@ -109,7 +109,7 @@ void JetiExProtocol::decodeChannelData() {
 	uint8_t numberOfChannels = packet[5] / 2; // channel data on 2 bytes
 
 	for (int i = 0; i < numberOfChannels; i++) {
-		uint16_t channelData = packet[6 + i * 2];
+		uint16_t channelData = packet[6 + i * 2] | packet[7 + i * 2] << 8;
 		if (channelDataObservers[i] != nullptr) {
 			channelDataObservers[i](channelData);
 		}

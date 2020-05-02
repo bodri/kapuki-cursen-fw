@@ -100,7 +100,7 @@ public:
 
 	std::function<void(const uint8_t *packet, size_t size)> onPacketSend;
 
-	void addChannelObserver(uint8_t channel, std::function<void(uint16_t channelData)> callback) { channelDataObservers[channel] = callback; }
+	void addChannelObserver(uint8_t channel, std::function<void(uint16_t channelData)> callback) { channelDataObservers[channel - 1] = callback; }
 
 	bool readByte(uint8_t byte);
 	bool readBuffer(uint8_t *buffer, size_t size);
