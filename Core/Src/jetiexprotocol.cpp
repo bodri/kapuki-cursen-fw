@@ -24,13 +24,13 @@ bool JetiExProtocol::readByte(uint8_t byte) {
 	static const uint8_t startChar2 = 0x3D;
 	static const uint8_t releaseBusFlag = 0x01;
 	static const uint8_t channelData = 0x31;
-	static const uint8_t telemetryRequest = 0x3A;
+	static const uint8_t telemetryDataRequest = 0x3A;
 	static const uint8_t jetiboxRequest = 0x3B;
 
 	switch (state) {
 	case Start:
+		packet.clear();
 		if (byte == startChar1 || byte == startChar2) {
-			packet.clear();
 			packet.push_back(byte);
 			state++;
 		}
@@ -68,20 +68,18 @@ bool JetiExProtocol::readByte(uint8_t byte) {
 		parsedChecksum += byte << 8;
 		uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)packet.data(), packet.size());
 		if (crc == parsedChecksum) {
-			for (int i = 0; i < 500; i++) { }
-
-			if (releaseBusFlag) {
+			if (packet[1] == releaseBusFlag) {
 				uint8_t dataIdentifier = packet[4];
 
 				if (dataIdentifier == channelData) {
 					decodeChannelData();
 				} else if (dataIdentifier == jetiboxRequest) {
-				} else if (dataIdentifier == telemetryRequest) {
-					std::string telemetryPacket = createExTelemetryPacket();
-					onPacketSend((uint8_t *)telemetryPacket.data(), telemetryPacket.size());
-				} else {
+				} else if (dataIdentifier == telemetryDataRequest) {
 					std::string telemetryPacket = createExDataPacket();
 					onPacketSend((uint8_t *)telemetryPacket.c_str(), telemetryPacket.size());
+				} else {
+					std::string telemetryPacket = createExTelemetryPacket();
+					onPacketSend((uint8_t *)telemetryPacket.data(), telemetryPacket.size());
 				}
 			}
 		}
