@@ -67,6 +67,8 @@ void Error_Handler(void);
 #define RECVCC_GPIO_Port GPIOA
 #define VREF_Pin GPIO_PIN_4
 #define VREF_GPIO_Port GPIOA
+#define TEST_Pin GPIO_PIN_8
+#define TEST_GPIO_Port GPIOA
 #define RXTX_Pin GPIO_PIN_9
 #define RXTX_GPIO_Port GPIOA
 #define LED_Pin GPIO_PIN_11
