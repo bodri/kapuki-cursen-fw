@@ -74,7 +74,7 @@ bool JetiExProtocol::readByte(uint8_t byte) {
 				if (dataIdentifier == channelData) {
 					decodeChannelData();
 				} else if (dataIdentifier == jetiboxRequest) {
-					std::string jetiboxPacket = createJetiboxPacket();
+					std::string jetiboxPacket = createJetiboxPacket(packet[6]);
 					onPacketSend((uint8_t *)jetiboxPacket.c_str(), jetiboxPacket.size());
 				} else if (dataIdentifier == telemetryDataRequest) {
 					std::string telemetryDataPacket = createExDataPacket();
@@ -174,7 +174,7 @@ std::string JetiExProtocol::createExTextPacket() {
 	return buffer;
 }
 
-std::string JetiExProtocol::createJetiboxPacket(void) {
+std::string JetiExProtocol::createJetiboxPacket(uint8_t buttonStatus) {
 	std::string buffer;
 	uint8_t length = 40; // screen size + 8
 	buffer.resize(length);
@@ -185,10 +185,10 @@ std::string JetiExProtocol::createJetiboxPacket(void) {
 	buffer[4] = 0x3B;
 	buffer[5] = 32;
 
-	std::string text = "kapuki-CS: 60A  current sensor  ";
-//	if (onDisplayScreen != nullptr) {
-//		text = onDisplayScreen(0);
-//	}
+	std::string text;
+	if (onDisplayScreen != nullptr) {
+		text = onDisplayScreen(buttonStatus);
+	}
 	if (text.size() < 32) {
 		text.append(32 - text.size(), ' ');
 	}

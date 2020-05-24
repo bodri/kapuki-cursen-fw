@@ -33,7 +33,7 @@
 /* USER CODE BEGIN Includes */
 
 #include <stdbool.h>
-#include <string.h>
+#include <string>
 #include "jetiexprotocol.h"
 
 /* USER CODE END Includes */
@@ -67,6 +67,9 @@ uint8_t serialData[1];
 bool jetiExBusInSync { false };
 uint32_t numberOfCharsDidRead { 0 };
 bool useExBusHighSpeed { true };
+uint8_t currentScreen { 0 };
+int currentCalibrationValue { 0 };
+int capacityResetChannel { 8 };
 
 /* USER CODE END PV */
 
@@ -162,16 +165,74 @@ int main(void)
   };
 
   // JetiBox screens
-  jetiExProtocol.onDisplayScreen = [](const uint8_t screen) {
-	  switch (screen) {
-		case 0:
-			return "kapuki-CS: 60A  "  "current sensor  ";
-		case 1:
-			return "Current: xxA    "  "Calibration: 0  ";
-		case 2:
-			return "Capacity reset  "  "channel: 8      ";
+  jetiExProtocol.onDisplayScreen = [](const uint8_t buttonStatus) {
+	  switch (buttonStatus) {
+		case 0xE0:
+			if (currentScreen < 5) {
+				currentScreen++;
+			}
+			break;
+		case 0x70:
+			if (currentScreen == 99) {
+				currentScreen = 0;
+			}
+			if (currentScreen > 0) {
+				currentScreen--;
+			}
+			break;
+		case 0xD0:
+			if (currentScreen == 3) {
+				currentCalibrationValue++;
+			}
+			if (currentScreen == 4 && capacityResetChannel < 24) {
+				capacityResetChannel++;
+			}
+			break;
+		case 0xB0:
+			if (currentScreen == 3) {
+				currentCalibrationValue--;
+			}
+			if (currentScreen == 4 && capacityResetChannel > 0) {
+				capacityResetChannel--;
+			}
+			break;
+		case 0x90:
+			// save changes
+			break;
 		default:
-			return "                                ";
+			break;
+	  }
+
+	  switch (currentScreen) {
+		case 0:
+			return std::string("    kapuki-CS   "  " Current Sensor ");
+		case 1: {
+			char data[32];
+			sprintf(data, "Current:%+4d.%01dAVoltage:  %2d.%02dV", (int)measuredCurrent, abs((int)(measuredCurrent * 100) % 100), (int)measuredVoltage, abs((int)(measuredVoltage * 100) % 100));
+			std::string str(data);
+			return str;
+		}
+		case 2: {
+			char data[32];
+			sprintf(data, "Capacity:%4dmAhPower:   %4dW", (int)measuredCapacity, abs((int)measuredPower));
+			std::string str(data);
+			return str;
+		}
+		case 3: {
+			char data[32];
+			sprintf(data, "Current:%+4d.%02dACalibration:%+4d", (int)measuredCurrent, abs((int)(measuredCurrent * 100) % 100), currentCalibrationValue);
+			return std::string(data);
+		}
+		case 4: {
+			char data[32];
+			sprintf(data, "Capacity reset  on channel: %d", capacityResetChannel);
+			return std::string(data);
+		}
+		case 5: {
+			return std::string("Save changes    UpDown button");
+		}
+		default:
+			return std::string();
 	  }
   };
 
