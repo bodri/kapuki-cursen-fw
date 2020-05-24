@@ -161,6 +161,21 @@ int main(void)
 	  }
   };
 
+  // JetiBox screens
+  jetiExProtocol.onDisplayScreen = [](const uint8_t screen) {
+	  switch (screen) {
+		case 0:
+			return "kapuki-CS: 60A  "  "current sensor  ";
+		case 1:
+			return "Current: xxA    "  "Calibration: 0  ";
+		case 2:
+			return "Capacity reset  "  "channel: 8      ";
+		default:
+			return "                                ";
+	  }
+  };
+
+
   jetiExProtocol.addChannelObserver(8, [](uint16_t channelData) {
 	  if (channelData == 8000) {
 		  measuredCapacity = 0;

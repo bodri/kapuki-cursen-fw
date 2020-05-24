@@ -100,6 +100,21 @@ public:
 
 	std::function<void(const uint8_t *packet, size_t size)> onPacketSend;
 
+	// JetiBox functions
+	std::function<std::string(const uint8_t screen)> onDisplayScreen;
+//	  224  RIGHT
+//	  112  LEFT
+//	  208  UP
+//	  176  DOWN
+//	  144  UP & DOWN
+//	  9    LEFT & RIGHT
+	std::function<std::string(const uint8_t screen)> onRightButtonPush;
+	std::function<std::string(const uint8_t screen)> onLeftButtonPush;
+	std::function<std::string(const uint8_t screen)> onUpButtonPush;
+	std::function<std::string(const uint8_t screen)> onDownButtonPush;
+	std::function<std::string(const uint8_t screen)> onUpDownButtonPush;
+	std::function<std::string(const uint8_t screen)> onLeftRightButtonPush;
+
 	void addChannelObserver(uint8_t channel, std::function<void(uint16_t channelData)> callback) { channelDataObservers[channel - 1] = callback; }
 
 	bool readByte(uint8_t byte);
@@ -120,8 +135,8 @@ private:
 
 	void decodeChannelData();
 	std::string createExDataPacket();
-	std::string createExTelemetryPacket();
-	void createJetiboxPacket(void);
+	std::string createExTextPacket();
+	std::string createJetiboxPacket(void);
 	std::string createTelemetryDataPacket();
 	std::string createTelemetryTextPacket(const TelemetryData *data);
 	uint8_t updateCrc(uint8_t crc, uint8_t crc_seed);

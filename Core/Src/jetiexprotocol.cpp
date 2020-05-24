@@ -74,12 +74,14 @@ bool JetiExProtocol::readByte(uint8_t byte) {
 				if (dataIdentifier == channelData) {
 					decodeChannelData();
 				} else if (dataIdentifier == jetiboxRequest) {
+					std::string jetiboxPacket = createJetiboxPacket();
+					onPacketSend((uint8_t *)jetiboxPacket.c_str(), jetiboxPacket.size());
 				} else if (dataIdentifier == telemetryDataRequest) {
-					std::string telemetryPacket = createExDataPacket();
-					onPacketSend((uint8_t *)telemetryPacket.c_str(), telemetryPacket.size());
+					std::string telemetryDataPacket = createExDataPacket();
+					onPacketSend((uint8_t *)telemetryDataPacket.c_str(), telemetryDataPacket.size());
 				} else {
-					std::string telemetryPacket = createExTelemetryPacket();
-					onPacketSend((uint8_t *)telemetryPacket.data(), telemetryPacket.size());
+					std::string telemetryTextPacket = createExTextPacket();
+					onPacketSend((uint8_t *)telemetryTextPacket.data(), telemetryTextPacket.size());
 				}
 			}
 		}
@@ -141,7 +143,7 @@ std::string JetiExProtocol::createExDataPacket() {
 	return buffer;
 }
 
-std::string JetiExProtocol::createExTelemetryPacket() {
+std::string JetiExProtocol::createExTextPacket() {
 	if (telemetryDataArray.size() <= 0) {
 		return "";
 	}
@@ -172,23 +174,31 @@ std::string JetiExProtocol::createExTelemetryPacket() {
 	return buffer;
 }
 
-void JetiExProtocol::createJetiboxPacket(void) {
-//	  uint8_t cucc[] = "\x43\x65\x6E\x74\x72\x61\x6C\x20\x42\x6F\x78\x20\x31\x30\x30\x3E\x20\x20\x20\x34\x2E\x38\x56\x20\x20\x31\x30\x34\x30\x6D\x41\x00";
-//	  uint8_t data[128];
-//	  data[0] = 0x3B;
-//	  data[1] = 0x01;
-//	  data[2] = sizeof(cucc) + 7; //len
-//	  data[3] = packetId; //0x08 packetId
-//	  data[4] = 0x3B;
-//	  data[5] = sizeof(cucc) - 1;
-//
-//	  uint8_t crc8 = calculateCrc8(cucc + 1, sizeof(cucc) - 3);
-//	  cucc[sizeof(cucc) - 2] = crc8;
-//
-//	  memcpy(&data[6], cucc, sizeof(cucc));
-//	  uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*) data, sizeof(cucc) + 5);
-//	  data[sizeof(cucc) + 5] = (uint8_t)crc;
-//	  data[sizeof(cucc) + 6] = (uint8_t)(crc >> 8);
+std::string JetiExProtocol::createJetiboxPacket(void) {
+	std::string buffer;
+	uint8_t length = 40; // screen size + 8
+	buffer.resize(length);
+	buffer[0] = 0x3B;
+	buffer[1] = 0x01;
+	buffer[2] = length;
+	buffer[3] = packet[3];
+	buffer[4] = 0x3B;
+	buffer[5] = 32;
+
+	std::string text = "kapuki-CS: 60A  current sensor  ";
+//	if (onDisplayScreen != nullptr) {
+//		text = onDisplayScreen(0);
+//	}
+	if (text.size() < 32) {
+		text.append(32 - text.size(), ' ');
+	}
+	std::copy(std::begin(text), std::end(text), std::begin(buffer) + 6);
+
+	uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*) buffer.data(), length - 2);
+	buffer[length - 2] = (uint8_t) crc;
+	buffer[length - 1] = (uint8_t) (crc >> 8);
+
+	return buffer;
 }
 
 std::string JetiExProtocol::createTelemetryDataPacket() {
