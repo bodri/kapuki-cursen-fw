@@ -48,7 +48,7 @@ struct Settings {
 	Settings(int16_t currentCalibrationValue, int16_t capacityResetChannel) :
 		currentCalibrationValue(currentCalibrationValue), capacityResetChannel(capacityResetChannel) { }
 	operator uint64_t() const {
-		return ((uint64_t)currentCalibrationValue << 16) | (uint64_t)capacityResetChannel;
+		return ((uint64_t)capacityResetChannel + ((uint64_t)currentCalibrationValue << 16) & 0x00000000FFFFFFFF);
 	}
 };
 
@@ -83,7 +83,7 @@ bool jetiExBusInSync { false };
 uint32_t numberOfCharsDidRead { 0 };
 bool useExBusHighSpeed { true };
 uint8_t currentScreen { 0 };
-Settings settings(0, 0);
+Settings settings(0, 8);
 
 JetiExProtocol *jetiExProtocol;
 
@@ -187,10 +187,14 @@ int main(void)
 
   // Load settings
   uint64_t loadedSettings = *(uint64_t *)SETTINGS_FLASH_ADDRESS;
-  settings = Settings((loadedSettings >> 16) & 0xFFFF, loadedSettings & 0xFFFF);
-//  if (settings.currentCalibrationValue == 0) {
-//	  settings
-//  }
+  int16_t currentCalibrationValue = (loadedSettings >> 16) & 0xFFFF;
+  int16_t capacityResetChannel = loadedSettings & 0xFFFF;
+  if (capacityResetChannel != -1) {
+	  settings = Settings(currentCalibrationValue, capacityResetChannel);
+  } else {
+	  // save defaults
+	  writeSettingsToFlash();
+  }
 
   // Calibrate ADC
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
@@ -198,7 +202,6 @@ int main(void)
 
   // Set REF to MAX4081
   HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
-//  HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2031); // Calibrated to zero when no load
   setReferenceForCurrentSenseAmplifier();
 
   // Start Current and Voltage measurement
@@ -279,7 +282,7 @@ int main(void)
 			return std::string("    kapuki-CS   "  " Current Sensor ");
 		case 1: {
 			char data[32];
-			sprintf(data, "Current:%+4d.%01dA Voltage:  %2d.%02dV", (int)measuredCurrent, abs((int)(measuredCurrent * 100) % 100), (int)measuredVoltage, abs((int)(measuredVoltage * 100) % 100));
+			sprintf(data, "Current:%+4d.%01dAVoltage:  %2d.%02dV", (int)measuredCurrent, abs((int)(measuredCurrent * 100) % 100), (int)measuredVoltage, abs((int)(measuredVoltage * 100) % 100));
 			std::string str(data);
 			return str;
 		}
