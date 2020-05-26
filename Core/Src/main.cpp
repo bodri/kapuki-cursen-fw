@@ -41,10 +41,22 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
+struct Settings {
+	int currentCalibrationValue;
+	int capacityResetChannel;
+
+	operator uint64_t() const {
+		return ((uint64_t)currentCalibrationValue << 48) | ((uint64_t)capacityResetChannel << 32);
+	}
+};
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
+#define SETTINGS_FLASH_ADDRESS 0x0801F800 // page 63
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -68,8 +80,9 @@ bool jetiExBusInSync { false };
 uint32_t numberOfCharsDidRead { 0 };
 bool useExBusHighSpeed { true };
 uint8_t currentScreen { 0 };
-int currentCalibrationValue { 0 };
-int capacityResetChannel { 8 };
+Settings settings;
+
+JetiExProtocol *jetiExProtocol;
 
 /* USER CODE END PV */
 
@@ -89,6 +102,32 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		measuredPower = measuredCurrent * measuredVoltage;
 		measuredCapacity += measuredCurrent / 360.0; // mAh
 	}
+}
+
+bool writeSettingsToFlash() {
+    // Unlock flash
+    HAL_FLASH_Unlock();
+    __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_ALL_ERRORS);
+
+	if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, SETTINGS_FLASH_ADDRESS, (uint64_t)settings) != HAL_OK) {
+		HAL_FLASH_Lock();
+		return false;
+	}
+
+    HAL_FLASH_Lock();
+    return true;
+}
+
+void setReferenceForCurrentSenseAmplifier() {
+	  HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2048 + settings.currentCalibrationValue);
+}
+
+void setCapacityResetChannelObserver() {
+	  jetiExProtocol->addChannelObserver(settings.capacityResetChannel, [](uint16_t channelData) {
+		  if (channelData == 8000) {
+			  measuredCapacity = 0;
+		  }
+	  });
 }
 
 /* USER CODE END 0 */
@@ -131,14 +170,22 @@ int main(void)
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
 
+  // Load settings
+  settings = *(Settings *)SETTINGS_FLASH_ADDRESS;
+//  if (settings.currentCalibrationValue == 0) {
+//	  settings
+//  }
+
   // Calibrate ADC
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
   HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
 
-  // Set REF to 1.5V
+  // Set REF to MAX4081
   HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
-  HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2031); // Calibrated to zero when no load
+//  HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2031); // Calibrated to zero when no load
+  setReferenceForCurrentSenseAmplifier();
 
+  // Start Current and Voltage measurement
   HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc1Readings, 1);
   HAL_ADC_Start_DMA(&hadc2, (uint32_t *)adc2Readings, 1);
 
@@ -157,15 +204,17 @@ int main(void)
 		  power
   };
 
-  JetiExProtocol jetiExProtocol(0xA4A1, 0x555D, telemetryDataArray);
-  jetiExProtocol.onPacketSend = [](const uint8_t *packet, size_t size) {
+  jetiExProtocol = new JetiExProtocol(0xA4A1, 0x555D, telemetryDataArray);
+  jetiExProtocol->onPacketSend = [](const uint8_t *packet, size_t size) {
 	  if (HAL_UART_Transmit(&huart1, (uint8_t *)packet, size, 1000) != HAL_OK) {
 		 Error_Handler();
 	  }
   };
 
+  setCapacityResetChannelObserver();
+
   // JetiBox screens
-  jetiExProtocol.onDisplayScreen = [](const uint8_t buttonStatus) {
+  jetiExProtocol->onDisplayScreen = [](const uint8_t buttonStatus) {
 	  switch (buttonStatus) {
 		case 0xE0:
 			if (currentScreen < 5) {
@@ -182,22 +231,28 @@ int main(void)
 			break;
 		case 0xD0:
 			if (currentScreen == 3) {
-				currentCalibrationValue++;
+				settings.currentCalibrationValue++;
+				setReferenceForCurrentSenseAmplifier();
 			}
-			if (currentScreen == 4 && capacityResetChannel < 24) {
-				capacityResetChannel++;
+			if (currentScreen == 4 && settings.capacityResetChannel < 24) {
+				jetiExProtocol->removeChannelObserver(settings.capacityResetChannel);
+				settings.capacityResetChannel++;
+				setCapacityResetChannelObserver();
 			}
 			break;
 		case 0xB0:
 			if (currentScreen == 3) {
-				currentCalibrationValue--;
+				settings.currentCalibrationValue--;
+				setReferenceForCurrentSenseAmplifier();
 			}
-			if (currentScreen == 4 && capacityResetChannel > 0) {
-				capacityResetChannel--;
+			if (currentScreen == 4 && settings.capacityResetChannel > 0) {
+				jetiExProtocol->removeChannelObserver(settings.capacityResetChannel);
+				settings.capacityResetChannel--;
+				setCapacityResetChannelObserver();
 			}
 			break;
 		case 0x90:
-			// save changes
+			writeSettingsToFlash(); // TODO: user feedback and error handling
 			break;
 		default:
 			break;
@@ -208,7 +263,7 @@ int main(void)
 			return std::string("    kapuki-CS   "  " Current Sensor ");
 		case 1: {
 			char data[32];
-			sprintf(data, "Current:%+4d.%01dAVoltage:  %2d.%02dV", (int)measuredCurrent, abs((int)(measuredCurrent * 100) % 100), (int)measuredVoltage, abs((int)(measuredVoltage * 100) % 100));
+			sprintf(data, "Current:%+4d.%01dA Voltage:  %2d.%02dV", (int)measuredCurrent, abs((int)(measuredCurrent * 100) % 100), (int)measuredVoltage, abs((int)(measuredVoltage * 100) % 100));
 			std::string str(data);
 			return str;
 		}
@@ -220,12 +275,12 @@ int main(void)
 		}
 		case 3: {
 			char data[32];
-			sprintf(data, "Current:%+4d.%02dACalibration:%+4d", (int)measuredCurrent, abs((int)(measuredCurrent * 100) % 100), currentCalibrationValue);
+			sprintf(data, "Current:%+4d.%02dACalibration:%+4d", (int)measuredCurrent, abs((int)(measuredCurrent * 100) % 100), settings.currentCalibrationValue);
 			return std::string(data);
 		}
 		case 4: {
 			char data[32];
-			sprintf(data, "Capacity reset  on channel: %d", capacityResetChannel);
+			sprintf(data, "Capacity reset  on channel: %d", settings.capacityResetChannel);
 			return std::string(data);
 		}
 		case 5: {
@@ -235,13 +290,6 @@ int main(void)
 			return std::string();
 	  }
   };
-
-
-  jetiExProtocol.addChannelObserver(8, [](uint16_t channelData) {
-	  if (channelData == 8000) {
-		  measuredCapacity = 0;
-	  }
-  });
 
   /* USER CODE END 2 */
 
@@ -263,7 +311,7 @@ int main(void)
 	  power->setValue((int16_t)(measuredPower));
 	  capacity->setValue((int16_t)(measuredCapacity));
 
-	  bool validPacket = jetiExProtocol.readByte(serialData[0]);
+	  bool validPacket = jetiExProtocol->readByte(serialData[0]);
 	  if (!jetiExBusInSync && !validPacket && numberOfCharsDidRead > 1000) {
 		  // Toggle EX BUS speed: 125 kBaud (LS) or 250 kBaud (HS)
 		  useExBusHighSpeed ? MX_USART1_UART_Init_low_speed() : MX_USART1_UART_Init();

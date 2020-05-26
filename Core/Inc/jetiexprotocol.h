@@ -104,6 +104,7 @@ public:
 	std::function<std::string(const uint8_t buttonStatus)> onDisplayScreen;
 
 	void addChannelObserver(uint8_t channel, std::function<void(uint16_t channelData)> callback) { channelDataObservers[channel - 1] = callback; }
+	void removeChannelObserver(uint8_t channel) { channelDataObservers.erase(channel); };
 
 	bool readByte(uint8_t byte);
 	bool readBuffer(uint8_t *buffer, size_t size);
