@@ -42,11 +42,13 @@
 /* USER CODE BEGIN PTD */
 
 struct Settings {
-	int currentCalibrationValue;
-	int capacityResetChannel;
+	int16_t currentCalibrationValue;
+	int16_t capacityResetChannel;
 
+	Settings(int16_t currentCalibrationValue, int16_t capacityResetChannel) :
+		currentCalibrationValue(currentCalibrationValue), capacityResetChannel(capacityResetChannel) { }
 	operator uint64_t() const {
-		return ((uint64_t)currentCalibrationValue << 48) | ((uint64_t)capacityResetChannel << 32);
+		return ((uint64_t)currentCalibrationValue << 16) | (uint64_t)capacityResetChannel;
 	}
 };
 
@@ -80,7 +82,7 @@ bool jetiExBusInSync { false };
 uint32_t numberOfCharsDidRead { 0 };
 bool useExBusHighSpeed { true };
 uint8_t currentScreen { 0 };
-Settings settings;
+Settings settings(0, 0);
 
 JetiExProtocol *jetiExProtocol;
 
@@ -171,7 +173,8 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   // Load settings
-  settings = *(Settings *)SETTINGS_FLASH_ADDRESS;
+  uint64_t loadedSettings = *(uint64_t *)SETTINGS_FLASH_ADDRESS;
+  settings = Settings((loadedSettings >> 16) & 0xFFFF, loadedSettings & 0xFFFF);
 //  if (settings.currentCalibrationValue == 0) {
 //	  settings
 //  }
