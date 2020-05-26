@@ -241,9 +241,6 @@ int main(void)
 			}
 			break;
 		case 0x70:
-			if (currentScreen == 99) {
-				currentScreen = 0;
-			}
 			if (currentScreen > 0) {
 				currentScreen--;
 			}
