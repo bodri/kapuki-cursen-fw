@@ -57,7 +57,8 @@ struct Settings {
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define SETTINGS_FLASH_ADDRESS 0x0801F800 // page 63
+#define SETTINGS_FLASH_PAGE (FLASH_PAGE_NB - 1) // store settings on the last page: 63
+#define SETTINGS_FLASH_ADDRESS (FLASH_BASE + (FLASH_PAGE_SIZE * SETTINGS_FLASH_PAGE))
 
 /* USER CODE END PD */
 
@@ -107,9 +108,21 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 }
 
 bool writeSettingsToFlash() {
+    FLASH_EraseInitTypeDef eraseInit;
+    uint32_t pageError;
+
     // Unlock flash
     HAL_FLASH_Unlock();
     __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_ALL_ERRORS);
+
+    eraseInit.Banks = FLASH_BANK_1;
+    eraseInit.NbPages = 1;
+    eraseInit.Page = SETTINGS_FLASH_PAGE;
+    eraseInit.TypeErase = FLASH_TYPEERASE_PAGES;
+    if (HAL_FLASHEx_Erase(&eraseInit, &pageError) != HAL_OK) {
+		HAL_FLASH_Lock();
+		return false;
+	}
 
 	if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, SETTINGS_FLASH_ADDRESS, (uint64_t)settings) != HAL_OK) {
 		HAL_FLASH_Lock();
