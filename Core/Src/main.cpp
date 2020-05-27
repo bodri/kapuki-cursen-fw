@@ -48,7 +48,7 @@ struct Settings {
 	Settings(int16_t currentCalibrationValue, int16_t capacityResetChannel) :
 		currentCalibrationValue(currentCalibrationValue), capacityResetChannel(capacityResetChannel) { }
 	operator uint64_t() const {
-		return ((uint64_t)capacityResetChannel + ((uint64_t)currentCalibrationValue << 16) & 0x00000000FFFFFFFF);
+		return ((uint64_t)capacityResetChannel + ((uint64_t)currentCalibrationValue << 16)) & 0xFFFFFFFF;
 	}
 };
 
@@ -145,6 +145,89 @@ void setCapacityResetChannelObserver() {
 	  });
 }
 
+void handleJetiBoxNavigation(const uint8_t buttonStatus) {
+	  switch (buttonStatus) {
+		case 0xE0:
+			if (currentScreen < 5) {
+				currentScreen++;
+			}
+			break;
+		case 0x70:
+			if (currentScreen > 0) {
+				currentScreen--;
+			}
+			break;
+		case 0xD0:
+			if (currentScreen == 3) {
+				settings.currentCalibrationValue++;
+				setReferenceForCurrentSenseAmplifier();
+			}
+			if (currentScreen == 4 && settings.capacityResetChannel < 24) {
+				jetiExProtocol->removeChannelObserver(settings.capacityResetChannel);
+				settings.capacityResetChannel++;
+				setCapacityResetChannelObserver();
+			}
+			break;
+		case 0xB0:
+			if (currentScreen == 3) {
+				settings.currentCalibrationValue--;
+				setReferenceForCurrentSenseAmplifier();
+			}
+			if (currentScreen == 4 && settings.capacityResetChannel > 0) {
+				jetiExProtocol->removeChannelObserver(settings.capacityResetChannel);
+				settings.capacityResetChannel--;
+				setCapacityResetChannelObserver();
+			}
+			break;
+		case 0x90:
+			writeSettingsToFlash(); // TODO: user feedback and error handling
+			break;
+		default:
+			break;
+	  }
+}
+
+std::string renderJetiBoxScreens() {
+	switch (currentScreen) {
+	case 0:
+		return std::string("    kapuki-CS   " " Current Sensor ");
+	case 1: {
+		char data[127];
+		sprintf(data, "Current:%+4d.%01dAVoltage:  %2d.%02dV",
+				(int)measuredCurrent,
+				abs((int)(measuredCurrent * 100) % 100),
+				(int)measuredVoltage,
+				abs((int)(measuredVoltage * 100) % 100));
+		return std::string(data);
+	}
+	case 2: {
+		char data[127];
+		sprintf(data, "Capacity:%4dmAhPower:   %4dW", (int)measuredCapacity,
+				abs((int) measuredPower));
+		return std::string(data);
+	}
+	case 3: {
+		char data[127];
+		sprintf(data, "Current:%+4d.%02dACalibration:%+4d",
+				(int)measuredCurrent,
+				abs((int)(measuredCurrent * 100) % 100),
+				settings.currentCalibrationValue);
+		return std::string(data);
+	}
+	case 4: {
+		char data[127];
+		sprintf(data, "Capacity reset  on channel: %d",
+				settings.capacityResetChannel);
+		return std::string(data);
+	}
+	case 5: {
+		return std::string("Save changes    UpDown button");
+	}
+	default:
+		return std::string();
+	}
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -234,77 +317,8 @@ int main(void)
 
   // JetiBox screens
   jetiExProtocol->onDisplayScreen = [](const uint8_t buttonStatus) {
-	  switch (buttonStatus) {
-		case 0xE0:
-			if (currentScreen < 5) {
-				currentScreen++;
-			}
-			break;
-		case 0x70:
-			if (currentScreen > 0) {
-				currentScreen--;
-			}
-			break;
-		case 0xD0:
-			if (currentScreen == 3) {
-				settings.currentCalibrationValue++;
-				setReferenceForCurrentSenseAmplifier();
-			}
-			if (currentScreen == 4 && settings.capacityResetChannel < 24) {
-				jetiExProtocol->removeChannelObserver(settings.capacityResetChannel);
-				settings.capacityResetChannel++;
-				setCapacityResetChannelObserver();
-			}
-			break;
-		case 0xB0:
-			if (currentScreen == 3) {
-				settings.currentCalibrationValue--;
-				setReferenceForCurrentSenseAmplifier();
-			}
-			if (currentScreen == 4 && settings.capacityResetChannel > 0) {
-				jetiExProtocol->removeChannelObserver(settings.capacityResetChannel);
-				settings.capacityResetChannel--;
-				setCapacityResetChannelObserver();
-			}
-			break;
-		case 0x90:
-			writeSettingsToFlash(); // TODO: user feedback and error handling
-			break;
-		default:
-			break;
-	  }
-
-	  switch (currentScreen) {
-		case 0:
-			return std::string("    kapuki-CS   "  " Current Sensor ");
-		case 1: {
-			char data[32];
-			sprintf(data, "Current:%+4d.%01dAVoltage:  %2d.%02dV", (int)measuredCurrent, abs((int)(measuredCurrent * 100) % 100), (int)measuredVoltage, abs((int)(measuredVoltage * 100) % 100));
-			std::string str(data);
-			return str;
-		}
-		case 2: {
-			char data[32];
-			sprintf(data, "Capacity:%4dmAhPower:   %4dW", (int)measuredCapacity, abs((int)measuredPower));
-			std::string str(data);
-			return str;
-		}
-		case 3: {
-			char data[32];
-			sprintf(data, "Current:%+4d.%02dACalibration:%+4d", (int)measuredCurrent, abs((int)(measuredCurrent * 100) % 100), settings.currentCalibrationValue);
-			return std::string(data);
-		}
-		case 4: {
-			char data[32];
-			sprintf(data, "Capacity reset  on channel: %d", settings.capacityResetChannel);
-			return std::string(data);
-		}
-		case 5: {
-			return std::string("Save changes    UpDown button");
-		}
-		default:
-			return std::string();
-	  }
+	  handleJetiBoxNavigation(buttonStatus);
+	  return renderJetiBoxScreens();
   };
 
   /* USER CODE END 2 */

@@ -189,14 +189,12 @@ std::string JetiExProtocol::createJetiboxPacket(uint8_t buttonStatus) {
 	if (onDisplayScreen != nullptr) {
 		text = onDisplayScreen(buttonStatus);
 	}
-	if (text.size() < 32) {
-		text.append(32 - text.size(), ' ');
-	}
+	text.resize(32);
 	std::copy(std::begin(text), std::end(text), std::begin(buffer) + 6);
 
 	uint32_t crc = HAL_CRC_Calculate(&hcrc, (uint32_t*) buffer.data(), length - 2);
-	buffer[length - 2] = (uint8_t) crc;
-	buffer[length - 1] = (uint8_t) (crc >> 8);
+	buffer[length - 2] = (uint8_t)crc;
+	buffer[length - 1] = (uint8_t)(crc >> 8);
 
 	return buffer;
 }
