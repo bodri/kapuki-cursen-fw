@@ -2,7 +2,7 @@
  * @file jetiexprotocol.h
  * @brief JETI EX protocol handler.
  *
- * @author Varadi, Gyorgy, aka bodri
+ * @author Varadi, Gyorgy aka bodri
  * Contact: bodri@bodrico.com
  *
  * @bug No known bugs.
