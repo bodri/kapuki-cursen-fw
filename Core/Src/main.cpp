@@ -34,6 +34,7 @@
 
 #include <stdbool.h>
 #include <string>
+#include <algorithm>
 #include "jetiexprotocol.h"
 
 /* USER CODE END Includes */
@@ -192,31 +193,39 @@ std::string renderJetiBoxScreens() {
 	case 0:
 		return std::string("    kapuki-CS   " " Current Sensor ");
 	case 1: {
-		char data[127];
-		sprintf(data, "Current:%+4d.%01dAVoltage:  %2d.%02dV",
+		char data[40];
+		snprintf(data, sizeof(data), "Current:%+4d.%02dAVoltage:  %2d.%02dV",
 				(int)measuredCurrent,
 				abs((int)(measuredCurrent * 100) % 100),
 				(int)measuredVoltage,
 				abs((int)(measuredVoltage * 100) % 100));
-		return std::string(data);
+		std::string str(data);
+		if (measuredCurrent < 0) { // Hack when the measuredCurrent is negative but casting it to int is 0 (-0.12)
+			std::replace(str.begin(), str.begin() + 16, '+', '-');
+		}
+		return str;
 	}
 	case 2: {
-		char data[127];
-		sprintf(data, "Capacity:%4dmAhPower:   %4dW", (int)measuredCapacity,
+		char data[40];
+		snprintf(data, sizeof(data), "Capacity:%4dmAhPower:   %4dW", (int)measuredCapacity,
 				abs((int) measuredPower));
 		return std::string(data);
 	}
 	case 3: {
-		char data[127];
-		sprintf(data, "Current:%+4d.%02dACalibration:%+4d",
+		char data[40];
+		snprintf(data, sizeof(data), "Current:%+4d.%02dACalibration:%+4d",
 				(int)measuredCurrent,
 				abs((int)(measuredCurrent * 100) % 100),
 				settings.currentCalibrationValue);
-		return std::string(data);
+		std::string str(data);
+		if (measuredCurrent < 0) { // Hack when the measuredCurrent is negative but casting it to int is 0 (-0.12)
+			std::replace(str.begin(), str.begin() + 16, '+', '-');
+		}
+		return str;
 	}
 	case 4: {
-		char data[127];
-		sprintf(data, "Capacity reset  on channel: %d",
+		char data[40];
+		snprintf(data, sizeof(data), "Capacity reset  on channel: %d",
 				settings.capacityResetChannel);
 		return std::string(data);
 	}
