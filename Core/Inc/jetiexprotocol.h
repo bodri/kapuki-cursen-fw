@@ -33,6 +33,8 @@ enum TelemetryDataType {
 
 class TelemetryData {
 	friend JetiExProtocol;
+	friend bool sortByPosition(const TelemetryData *lhs, const TelemetryData *rhs);
+
 public:
 
 	TelemetryData(uint8_t position, std::string description, std::string unit, TelemetryDataType dataType, uint8_t decimalPointPosition) :
@@ -92,10 +94,7 @@ inline ParserState& operator++(ParserState& s, int) {
 
 class JetiExProtocol {
 public:
-	JetiExProtocol(uint16_t manufacturerId, uint16_t deviceId, std::vector<TelemetryData *> telemetryDataArray) :
-		manufacturerId(manufacturerId),
-		deviceId(deviceId),
-		telemetryDataArray(telemetryDataArray) { }
+	JetiExProtocol(uint16_t manufacturerId, uint16_t deviceId, std::vector<TelemetryData *> telemetryDataArray);
 	~JetiExProtocol() { }
 
 	std::function<void(const uint8_t *packet, size_t size)> onPacketSend;

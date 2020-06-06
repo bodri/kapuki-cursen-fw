@@ -16,8 +16,20 @@
 
 #include <memory>
 #include <numeric>
+#include <algorithm>
 
 #define CRC8_POLYNOMIAL 0x07
+
+bool sortByPosition(const TelemetryData *lhs, const TelemetryData *rhs) {
+	return lhs->position < rhs->position;
+}
+
+JetiExProtocol::JetiExProtocol(uint16_t manufacturerId, uint16_t deviceId, std::vector<TelemetryData *> telemetryDataArray) :
+	manufacturerId(manufacturerId),
+	deviceId(deviceId),
+	telemetryDataArray(telemetryDataArray) {
+    std::sort(this->telemetryDataArray.begin(), this->telemetryDataArray.end(), sortByPosition);
+}
 
 bool JetiExProtocol::readByte(uint8_t byte) {
 	static const uint8_t startChar1 = 0x3E;

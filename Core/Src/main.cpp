@@ -85,6 +85,7 @@ uint32_t numberOfCharsDidRead { 0 };
 bool useExBusHighSpeed { true };
 uint8_t currentScreen { 0 };
 Settings settings(0, 8);
+bool shouldSendPacket { false };
 
 JetiExProtocol *jetiExProtocol;
 
@@ -105,6 +106,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		measuredVoltage = (3.0 * adc1Readings[0] / 4096.0) / 0.058968058968059;
 		measuredPower = measuredCurrent * measuredVoltage;
 		measuredCapacity += measuredCurrent / 360.0; // mAh
+	} else if (htim->Instance == TIM6) {
+		shouldSendPacket = true;
 	}
 }
 
@@ -275,6 +278,9 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM4_Init();
   MX_CRC_Init();
+  MX_TIM1_Init();
+  MX_TIM2_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
 
   // Load settings
@@ -317,6 +323,11 @@ int main(void)
 
   jetiExProtocol = new JetiExProtocol(0xA4A1, 0x555D, telemetryDataArray);
   jetiExProtocol->onPacketSend = [](const uint8_t *packet, size_t size) {
+	  if (!shouldSendPacket) {
+		  return;
+	  }
+
+	  shouldSendPacket = false;
 	  if (HAL_UART_Transmit(&huart1, (uint8_t *)packet, size, 1000) != HAL_OK) {
 		 Error_Handler();
 	  }
@@ -335,6 +346,7 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   HAL_TIM_Base_Start_IT(&htim4);
+  HAL_TIM_Base_Start_IT(&htim6);
   while (1)
   {
     /* USER CODE END WHILE */
