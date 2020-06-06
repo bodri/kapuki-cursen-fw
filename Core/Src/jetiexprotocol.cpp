@@ -213,7 +213,7 @@ std::string JetiExProtocol::createJetiboxPacket(uint8_t buttonStatus) {
 
 std::string JetiExProtocol::createTelemetryDataPacket() {
 	std::string buffer;
-	uint8_t length = std::accumulate(telemetryDataArray.begin(), telemetryDataArray.end(), 8,
+	uint8_t length = std::accumulate(telemetryDataArray.begin() + 1, telemetryDataArray.end(), 8,
 			[](int n, auto const& telemetryData) { return n + telemetryData->numberOfValueBytes() + 1; });
 	buffer.resize(length);
 

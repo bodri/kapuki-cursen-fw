@@ -110,12 +110,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		measuredCapacity += measuredCurrent / 360.0; // mAh
 	} else if (htim->Instance == TIM6) {
 		shouldSendPacket = true;
-	} else if  (htim->Instance == TIM1) {
-		HAL_TIM_Base_Stop(&htim1);
-		__HAL_TIM_SET_COUNTER(&htim1, 0);
+//		HAL_GPIO_TogglePin(TEST_GPIO_Port, TEST_Pin);
+	} else if  (htim->Instance == TIM3) {
+		HAL_TIM_Base_Stop(&htim3);
+		__HAL_TIM_SET_COUNTER(&htim3, 0);
 		motorFrequency = __HAL_TIM_GET_COUNTER(&htim2);
 		__HAL_TIM_SET_COUNTER(&htim2, 0);
-		HAL_TIM_Base_Start(&htim1);
+		HAL_TIM_Base_Start(&htim3);
 	}
 }
 
@@ -192,7 +193,9 @@ void handleJetiBoxNavigation(const uint8_t buttonStatus) {
 			}
 			break;
 		case 0x90:
-			writeSettingsToFlash(); // TODO: user feedback and error handling
+			if (currentScreen == 5) {
+				writeSettingsToFlash(); // TODO: user feedback and error handling
+			}
 			break;
 		default:
 			break;
@@ -286,8 +289,8 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM4_Init();
   MX_CRC_Init();
-  MX_TIM1_Init();
   MX_TIM2_Init();
+  MX_TIM3_Init();
   MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
 
@@ -356,8 +359,9 @@ int main(void)
   HAL_TIM_Base_Start_IT(&htim4);
   HAL_TIM_Base_Start_IT(&htim6);
 
-  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 2000); // 1sec gate time for tim2
-  HAL_TIM_Base_Start_IT(&htim1);
+  htim3.Instance->CCMR1 |= (0x6UL << 4);
+  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 2000); // 1sec gate time for tim2
+  HAL_TIM_Base_Start_IT(&htim3);
   HAL_TIM_Base_Start(&htim2);
   while (1)
   {
