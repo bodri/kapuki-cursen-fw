@@ -86,6 +86,8 @@ bool useExBusHighSpeed { true };
 uint8_t currentScreen { 0 };
 Settings settings(0, 8);
 bool shouldSendPacket { false };
+uint32_t motorFrequency { 0 };
+
 
 JetiExProtocol *jetiExProtocol;
 
@@ -108,6 +110,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		measuredCapacity += measuredCurrent / 360.0; // mAh
 	} else if (htim->Instance == TIM6) {
 		shouldSendPacket = true;
+	} else if  (htim->Instance == TIM1) {
+		HAL_TIM_Base_Stop(&htim1);
+		__HAL_TIM_SET_COUNTER(&htim1, 0);
+		motorFrequency = __HAL_TIM_GET_COUNTER(&htim2);
+		__HAL_TIM_SET_COUNTER(&htim2, 0);
+		HAL_TIM_Base_Start(&htim1);
 	}
 }
 
@@ -347,6 +355,10 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   HAL_TIM_Base_Start_IT(&htim4);
   HAL_TIM_Base_Start_IT(&htim6);
+
+  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 2000); // 1sec gate time for tim2
+  HAL_TIM_Base_Start_IT(&htim1);
+  HAL_TIM_Base_Start(&htim2);
   while (1)
   {
     /* USER CODE END WHILE */
