@@ -29,6 +29,11 @@ JetiExProtocol::JetiExProtocol(uint16_t manufacturerId, uint16_t deviceId, std::
 	deviceId(deviceId),
 	telemetryDataArray(telemetryDataArray) {
     std::sort(this->telemetryDataArray.begin(), this->telemetryDataArray.end(), sortByPosition);
+
+    std::vector<TelemetryData *>::iterator it = this->telemetryDataArray.begin();
+    if ((*it)->position != 0) {
+        it = this->telemetryDataArray.insert(it, new TelemetryData(0, "Noname sensor", "", zero, 0));
+    }
 }
 
 bool JetiExProtocol::readByte(uint8_t byte) {
@@ -228,7 +233,7 @@ std::string JetiExProtocol::createTelemetryDataPacket() {
 	uint8_t i = 7;
 	for (auto const& telemetryData : telemetryDataArray) {
 		auto bytes = telemetryData->numberOfValueBytes();
-		if (bytes > 0) {
+		if (telemetryData->position > 0 && bytes > 0) {
 			buffer[i++] = ((telemetryData->position & 0x0F) << 4) | (telemetryData->dataType & 0x0F);
 			buffer[i] = telemetryData->value;
 			if (bytes > 1) {
