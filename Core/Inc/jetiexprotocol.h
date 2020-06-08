@@ -97,7 +97,8 @@ public:
 	JetiExProtocol(uint16_t manufacturerId, uint16_t deviceId, std::vector<TelemetryData *> telemetryDataArray);
 	~JetiExProtocol() { }
 
-	std::function<void(const uint8_t *packet, size_t size)> onPacketSend;
+	std::function<void(const uint8_t *packet, size_t size)> onTextPacketSend;
+	std::function<void(const uint8_t *packet, size_t size)> onDataPacketSend;
 
 	// JetiBox functions
 	std::function<std::string(const uint8_t buttonStatus)> onDisplayScreen;

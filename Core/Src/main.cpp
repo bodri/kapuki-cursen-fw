@@ -324,16 +324,24 @@ int main(void)
   TelemetryData *voltage = new TelemetryData(2, "Voltage", "V", int14_t, 2);
   TelemetryData *capacity = new TelemetryData(3, "Capacity", "mAh", int14_t, 0);
   TelemetryData *power = new TelemetryData(4, "Power", "W", int14_t, 0);
+  TelemetryData *rpm = new TelemetryData(5, "Motor RPM", "", int14_t, 0);
   std::vector<TelemetryData *> telemetryDataArray = {
 		  sensor,
 		  current,
 		  voltage,
 		  capacity,
-		  power
+		  power,
+		  rpm
   };
 
   jetiExProtocol = new JetiExProtocol(0xA4A1, 0x555D, telemetryDataArray);
-  jetiExProtocol->onPacketSend = [](const uint8_t *packet, size_t size) {
+  jetiExProtocol->onTextPacketSend = [](const uint8_t *packet, size_t size) {
+	  if (HAL_UART_Transmit(&huart1, (uint8_t *)packet, size, 1000) != HAL_OK) {
+		 Error_Handler();
+	  }
+  };
+
+  jetiExProtocol->onDataPacketSend = [](const uint8_t *packet, size_t size) {
 	  if (!shouldSendPacket) {
 		  return;
 	  }
@@ -351,6 +359,9 @@ int main(void)
 	  handleJetiBoxNavigation(buttonStatus);
 	  return renderJetiBoxScreens();
   };
+
+  // Start comparator for motor RPM measurement
+  HAL_COMP_Start(&hcomp1);
 
   /* USER CODE END 2 */
 
@@ -377,6 +388,7 @@ int main(void)
 	  voltage->setValue((int16_t)(measuredVoltage * 100.0));
 	  power->setValue((int16_t)(measuredPower));
 	  capacity->setValue((int16_t)(measuredCapacity));
+	  rpm->setValue((int16_t)(motorFrequency));
 
 	  bool validPacket = jetiExProtocol->readByte(serialData[0]);
 	  if (!jetiExBusInSync && !validPacket && numberOfCharsDidRead > 1000) {

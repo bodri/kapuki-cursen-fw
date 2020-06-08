@@ -92,13 +92,13 @@ bool JetiExProtocol::readByte(uint8_t byte) {
 					decodeChannelData();
 				} else if (dataIdentifier == jetiboxRequest) {
 					std::string jetiboxPacket = createJetiboxPacket(packet[6]);
-					onPacketSend((uint8_t *)jetiboxPacket.c_str(), jetiboxPacket.size());
+					onTextPacketSend((uint8_t *)jetiboxPacket.c_str(), jetiboxPacket.size());
 				} else if (dataIdentifier == telemetryDataRequest) {
 					std::string telemetryDataPacket = createExDataPacket();
-					onPacketSend((uint8_t *)telemetryDataPacket.c_str(), telemetryDataPacket.size());
+					onDataPacketSend((uint8_t *)telemetryDataPacket.c_str(), telemetryDataPacket.size());
 				} else {
 					std::string telemetryTextPacket = createExTextPacket();
-					onPacketSend((uint8_t *)telemetryTextPacket.data(), telemetryTextPacket.size());
+					onTextPacketSend((uint8_t *)telemetryTextPacket.data(), telemetryTextPacket.size());
 				}
 			}
 		}
