@@ -109,7 +109,7 @@ void SystemClock_Config(void);
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	if (htim->Instance == TIM4) {
-		measuredCurrent = ((3.0 * (double)adc2Readings[0] / 4096.0) - 1.5) / (settings.shuntResistorValue * settings.amlifierGain); // (Vout - Vref) / (Rsense * Av)
+		measuredCurrent = ((3.0 * (double)adc2Readings[0] / 65536.0) - 1.5) / (settings.shuntResistorValue * settings.amlifierGain); // (Vout - Vref) / (Rsense * Av)
 		measuredVoltage = (3.0 * (double)adc1Readings[0] / 4096.0) / 0.058968058968059;
 		measuredPower = measuredCurrent * measuredVoltage;
 		measuredCapacity += measuredCurrent / 360.0; // mAh
