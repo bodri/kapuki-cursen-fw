@@ -45,11 +45,16 @@
 struct Settings {
 	int16_t currentCalibrationValue;
 	int16_t capacityResetChannel;
+	double shuntResistorValue;
+	uint16_t amlifierGain;
 
-	Settings(int16_t currentCalibrationValue, int16_t capacityResetChannel) :
-		currentCalibrationValue(currentCalibrationValue), capacityResetChannel(capacityResetChannel) { }
+	Settings(int16_t currentCalibrationValue, int16_t capacityResetChannel, double shuntResistorValue, uint16_t amlifierGain) :
+		currentCalibrationValue(currentCalibrationValue),
+		capacityResetChannel(capacityResetChannel),
+		shuntResistorValue(shuntResistorValue),
+		amlifierGain(amlifierGain) { }
 	operator uint64_t() const {
-		return ((uint64_t)capacityResetChannel + ((uint64_t)currentCalibrationValue << 16)) & 0xFFFFFFFF;
+		return ((uint64_t)capacityResetChannel + ((uint64_t)currentCalibrationValue << 16)) + ((uint64_t)shuntResistorValue << 32) + ((uint64_t)amlifierGain << 48);
 	}
 };
 
@@ -84,7 +89,7 @@ bool jetiExBusInSync { false };
 uint32_t numberOfCharsDidRead { 0 };
 bool useExBusHighSpeed { true };
 uint8_t currentScreen { 0 };
-Settings settings(0, 8);
+Settings settings(0, 8, 0.0002, 60);
 bool shouldSendPacket { false };
 uint32_t motorFrequency { 0 };
 
@@ -104,8 +109,8 @@ void SystemClock_Config(void);
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	if (htim->Instance == TIM4) {
-		measuredCurrent = ((3.0 * adc2Readings[0] / 4096.0) - 1.5) / 0.012; // (Vout - Vref) / (Rsense * Av)
-		measuredVoltage = (3.0 * adc1Readings[0] / 4096.0) / 0.058968058968059;
+		measuredCurrent = ((3.0 * (double)adc2Readings[0] / 4096.0) - 1.5) / (settings.shuntResistorValue * settings.amlifierGain); // (Vout - Vref) / (Rsense * Av)
+		measuredVoltage = (3.0 * (double)adc1Readings[0] / 4096.0) / 0.058968058968059;
 		measuredPower = measuredCurrent * measuredVoltage;
 		measuredCapacity += measuredCurrent / 360.0; // mAh
 	} else if (htim->Instance == TIM6) {
@@ -161,7 +166,7 @@ void setCapacityResetChannelObserver() {
 void handleJetiBoxNavigation(const uint8_t buttonStatus) {
 	  switch (buttonStatus) {
 		case 0xE0:
-			if (currentScreen < 5) {
+			if (currentScreen < 7) {
 				currentScreen++;
 			}
 			break;
@@ -180,6 +185,28 @@ void handleJetiBoxNavigation(const uint8_t buttonStatus) {
 				settings.capacityResetChannel++;
 				setCapacityResetChannelObserver();
 			}
+			if (currentScreen == 5) {
+				if (settings.shuntResistorValue == 0.0002) {
+					settings.shuntResistorValue = 0.0005;
+				} else if (settings.shuntResistorValue == 0.0005) {
+					settings.shuntResistorValue = 0.0007;
+				} else if (settings.shuntResistorValue == 0.0007) {
+					settings.shuntResistorValue = 0.001;
+				} else if (settings.shuntResistorValue == 0.001) {
+					settings.shuntResistorValue = 0.002;
+				} else if (settings.shuntResistorValue == 0.002) {
+					settings.shuntResistorValue = 0.0002;
+				}
+			}
+			if (currentScreen == 6) {
+				if (settings.amlifierGain == 5) {
+					settings.amlifierGain = 20;
+				} else if (settings.amlifierGain == 20) {
+					settings.amlifierGain = 60;
+				} else if (settings.amlifierGain == 60) {
+					settings.amlifierGain = 5;
+				}
+			}
 			break;
 		case 0xB0:
 			if (currentScreen == 3) {
@@ -191,9 +218,31 @@ void handleJetiBoxNavigation(const uint8_t buttonStatus) {
 				settings.capacityResetChannel--;
 				setCapacityResetChannelObserver();
 			}
+			if (currentScreen == 5) {
+				if (settings.shuntResistorValue == 0.0002) {
+					settings.shuntResistorValue = 0.002;
+				} else if (settings.shuntResistorValue == 0.0005) {
+					settings.shuntResistorValue = 0.0002;
+				} else if (settings.shuntResistorValue == 0.0007) {
+					settings.shuntResistorValue = 0.0005;
+				} else if (settings.shuntResistorValue == 0.001) {
+					settings.shuntResistorValue = 0.0007;
+				} else if (settings.shuntResistorValue == 0.002) {
+					settings.shuntResistorValue = 0.001;
+				}
+			}
+			if (currentScreen == 6) {
+				if (settings.amlifierGain == 5) {
+					settings.amlifierGain = 60;
+				} else if (settings.amlifierGain == 20) {
+					settings.amlifierGain = 5;
+				} else if (settings.amlifierGain == 60) {
+					settings.amlifierGain = 20;
+				}
+			}
 			break;
 		case 0x90:
-			if (currentScreen == 5) {
+			if (currentScreen == 7) {
 				writeSettingsToFlash(); // TODO: user feedback and error handling
 			}
 			break;
@@ -244,6 +293,19 @@ std::string renderJetiBoxScreens() {
 		return std::string(data);
 	}
 	case 5: {
+		char data[40];
+		snprintf(data, sizeof(data), "Shunt resistor  value: %+1d.%04dohm",
+				(int)settings.shuntResistorValue,
+				abs((int)(settings.shuntResistorValue * 10000) % 10000));
+		return std::string(data);
+	}
+	case 6: {
+		char data[40];
+		snprintf(data, sizeof(data), "Curr. amplifier  gain: %d",
+				settings.amlifierGain);
+		return std::string(data);
+	}
+	case 7: {
 		return std::string("Save changes    UpDown button");
 	}
 	default:
@@ -298,8 +360,10 @@ int main(void)
   uint64_t loadedSettings = *(uint64_t *)SETTINGS_FLASH_ADDRESS;
   int16_t currentCalibrationValue = (loadedSettings >> 16) & 0xFFFF;
   int16_t capacityResetChannel = loadedSettings & 0xFFFF;
+  double shuntResistorValue = (loadedSettings >> 32) & 0xFFFF;
+  uint16_t amplifierGain = (loadedSettings >> 48) & 0xFFFF;
   if (capacityResetChannel != -1) {
-	  settings = Settings(currentCalibrationValue, capacityResetChannel);
+	  settings = Settings(currentCalibrationValue, capacityResetChannel, shuntResistorValue, amplifierGain);
   } else {
 	  // save defaults
 	  writeSettingsToFlash();
