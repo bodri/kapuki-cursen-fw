@@ -45,16 +45,19 @@
 struct Settings {
 	int16_t currentCalibrationValue;
 	int16_t capacityResetChannel;
-	double shuntResistorValue;
+	uint16_t shuntResistorValueInMicroOhm;
 	uint16_t amlifierGain;
 
-	Settings(int16_t currentCalibrationValue, int16_t capacityResetChannel, double shuntResistorValue, uint16_t amlifierGain) :
+	Settings(int16_t currentCalibrationValue, int16_t capacityResetChannel, uint16_t shuntResistorValueInMicroOhm, uint16_t amlifierGain) :
 		currentCalibrationValue(currentCalibrationValue),
 		capacityResetChannel(capacityResetChannel),
-		shuntResistorValue(shuntResistorValue),
+		shuntResistorValueInMicroOhm(shuntResistorValueInMicroOhm),
 		amlifierGain(amlifierGain) { }
 	operator uint64_t() const {
-		return ((uint64_t)capacityResetChannel + ((uint64_t)currentCalibrationValue << 16)) + ((uint64_t)shuntResistorValue << 32) + ((uint64_t)amlifierGain << 48);
+		return (((uint64_t)capacityResetChannel & 0xFFFF) +
+				(((uint64_t)currentCalibrationValue << 16) & 0xFFFF0000) +
+				(((uint64_t)shuntResistorValueInMicroOhm << 32) & 0xFFFF00000000) +
+				(((uint64_t)amlifierGain << 48) & 0xFFFF000000000000));
 	}
 };
 
@@ -89,7 +92,7 @@ bool jetiExBusInSync { false };
 uint32_t numberOfCharsDidRead { 0 };
 bool useExBusHighSpeed { true };
 uint8_t currentScreen { 0 };
-Settings settings(0, 8, 0.0002, 60);
+Settings settings(0, 8, 200, 60);
 bool shouldSendPacket { false };
 uint32_t motorFrequency { 0 };
 
@@ -109,7 +112,7 @@ void SystemClock_Config(void);
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	if (htim->Instance == TIM4) {
-		measuredCurrent = ((3.0 * (double)adc2Readings[0] / 65536.0) - 1.5) / (settings.shuntResistorValue * settings.amlifierGain); // (Vout - Vref) / (Rsense * Av)
+		measuredCurrent = ((3.0 * (double)adc2Readings[0] / 65536.0) - 1.5) / ((double)settings.shuntResistorValueInMicroOhm / 1000000.0 * settings.amlifierGain); // (Vout - Vref) / (Rsense * Av)
 		measuredVoltage = (3.0 * (double)adc1Readings[0] / 4096.0) / 0.058968058968059;
 		measuredPower = measuredCurrent * measuredVoltage;
 		measuredCapacity += measuredCurrent / 360.0; // mAh
@@ -186,16 +189,16 @@ void handleJetiBoxNavigation(const uint8_t buttonStatus) {
 				setCapacityResetChannelObserver();
 			}
 			if (currentScreen == 5) {
-				if (settings.shuntResistorValue == 0.0002) {
-					settings.shuntResistorValue = 0.0005;
-				} else if (settings.shuntResistorValue == 0.0005) {
-					settings.shuntResistorValue = 0.0007;
-				} else if (settings.shuntResistorValue == 0.0007) {
-					settings.shuntResistorValue = 0.001;
-				} else if (settings.shuntResistorValue == 0.001) {
-					settings.shuntResistorValue = 0.002;
-				} else if (settings.shuntResistorValue == 0.002) {
-					settings.shuntResistorValue = 0.0002;
+				if (settings.shuntResistorValueInMicroOhm == 200) {
+					settings.shuntResistorValueInMicroOhm = 500;
+				} else if (settings.shuntResistorValueInMicroOhm == 500) {
+					settings.shuntResistorValueInMicroOhm = 700;
+				} else if (settings.shuntResistorValueInMicroOhm == 700) {
+					settings.shuntResistorValueInMicroOhm = 1000;
+				} else if (settings.shuntResistorValueInMicroOhm == 1000) {
+					settings.shuntResistorValueInMicroOhm = 2000;
+				} else if (settings.shuntResistorValueInMicroOhm == 2000) {
+					settings.shuntResistorValueInMicroOhm = 200;
 				}
 			}
 			if (currentScreen == 6) {
@@ -219,16 +222,16 @@ void handleJetiBoxNavigation(const uint8_t buttonStatus) {
 				setCapacityResetChannelObserver();
 			}
 			if (currentScreen == 5) {
-				if (settings.shuntResistorValue == 0.0002) {
-					settings.shuntResistorValue = 0.002;
-				} else if (settings.shuntResistorValue == 0.0005) {
-					settings.shuntResistorValue = 0.0002;
-				} else if (settings.shuntResistorValue == 0.0007) {
-					settings.shuntResistorValue = 0.0005;
-				} else if (settings.shuntResistorValue == 0.001) {
-					settings.shuntResistorValue = 0.0007;
-				} else if (settings.shuntResistorValue == 0.002) {
-					settings.shuntResistorValue = 0.001;
+				if (settings.shuntResistorValueInMicroOhm == 200) {
+					settings.shuntResistorValueInMicroOhm = 2000;
+				} else if (settings.shuntResistorValueInMicroOhm == 500) {
+					settings.shuntResistorValueInMicroOhm = 200;
+				} else if (settings.shuntResistorValueInMicroOhm == 700) {
+					settings.shuntResistorValueInMicroOhm = 500;
+				} else if (settings.shuntResistorValueInMicroOhm == 1000) {
+					settings.shuntResistorValueInMicroOhm = 700;
+				} else if (settings.shuntResistorValueInMicroOhm == 2000) {
+					settings.shuntResistorValueInMicroOhm = 1000;
 				}
 			}
 			if (currentScreen == 6) {
@@ -294,14 +297,13 @@ std::string renderJetiBoxScreens() {
 	}
 	case 5: {
 		char data[40];
-		snprintf(data, sizeof(data), "Shunt resistor  value: %+1d.%04dohm",
-				(int)settings.shuntResistorValue,
-				abs((int)(settings.shuntResistorValue * 10000) % 10000));
+		snprintf(data, sizeof(data), "Shunt resistor  value: 0.%04dohm",
+				abs((int)(settings.shuntResistorValueInMicroOhm / 100) % 100));
 		return std::string(data);
 	}
 	case 6: {
 		char data[40];
-		snprintf(data, sizeof(data), "Curr. amplifier  gain: %d",
+		snprintf(data, sizeof(data), "Curr. amplifier gain: %d",
 				settings.amlifierGain);
 		return std::string(data);
 	}
@@ -360,10 +362,15 @@ int main(void)
   uint64_t loadedSettings = *(uint64_t *)SETTINGS_FLASH_ADDRESS;
   int16_t currentCalibrationValue = (loadedSettings >> 16) & 0xFFFF;
   int16_t capacityResetChannel = loadedSettings & 0xFFFF;
-  double shuntResistorValue = (loadedSettings >> 32) & 0xFFFF;
+  uint16_t shuntResistorValueInMicroOhm = (loadedSettings >> 32) & 0xFFFF;
   uint16_t amplifierGain = (loadedSettings >> 48) & 0xFFFF;
+  if (shuntResistorValueInMicroOhm == 0 || amplifierGain == 0) {
+	  shuntResistorValueInMicroOhm = 200;
+	  amplifierGain = 60;
+	  writeSettingsToFlash();
+  }
   if (capacityResetChannel != -1) {
-	  settings = Settings(currentCalibrationValue, capacityResetChannel, shuntResistorValue, amplifierGain);
+	  settings = Settings(currentCalibrationValue, capacityResetChannel, shuntResistorValueInMicroOhm, amplifierGain);
   } else {
 	  // save defaults
 	  writeSettingsToFlash();
